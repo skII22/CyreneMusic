@@ -35,9 +35,11 @@ class _AboutSettingsState extends State<AboutSettings> {
   }
 
   void _onServiceChanged() {
-    if (mounted) {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       setState(() {});
-    }
+    });
   }
 
   @override

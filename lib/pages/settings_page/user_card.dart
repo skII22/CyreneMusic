@@ -89,8 +89,8 @@ class _UserCardState extends State<UserCard> {
             ),
           ),
           content: SizedBox(
-            width: 520,
-            height: 420,
+            width: 560,
+            height: 480,
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 150),
               child: SingleChildScrollView(
@@ -368,44 +368,68 @@ class _UserCardState extends State<UserCard> {
     required VoidCallback toRegister,
     required VoidCallback toForgot,
   }) {
-    return Column(
-      key: const ValueKey('login'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (errorText != null)
-          fluent_ui.InfoBar(
-            title: const Text('错误'),
-            content: Text(errorText),
-            severity: fluent_ui.InfoBarSeverity.error,
+    final typo = fluent_ui.FluentTheme.of(context).typography;
+    return fluent_ui.Card(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        key: const ValueKey('login'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Icon(fluent_ui.FluentIcons.contact, size: 18),
+              const SizedBox(width: 8),
+              Text('登录到 Cyrene', style: typo.subtitle),
+            ],
           ),
-        const SizedBox(height: 8),
-        fluent_ui.TextBox(
-          controller: accountController,
-          placeholder: '邮箱 / 用户名',
-        ),
-        const SizedBox(height: 12),
-        fluent_ui.PasswordBox(
-          controller: passwordController,
-          placeholder: '密码',
-          onSubmitted: (_) => onSubmit(),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            fluent_ui.Button(onPressed: toRegister, child: const Text('去注册')),
-            const SizedBox(width: 8),
-            fluent_ui.Button(onPressed: toForgot, child: const Text('忘记密码')),
-            const Spacer(),
-            fluent_ui.FilledButton(
-              onPressed: loading ? null : onSubmit,
-              child: loading
-                  ? const SizedBox(width: 18, height: 18, child: fluent_ui.ProgressRing(strokeWidth: 2))
-                  : const Text('登录'),
+          const SizedBox(height: 12),
+          if (errorText != null) ...[
+            fluent_ui.InfoBar(
+              title: const Text('错误'),
+              content: Text(errorText),
+              severity: fluent_ui.InfoBarSeverity.error,
             ),
+            const SizedBox(height: 8),
           ],
-        ),
-      ],
+          fluent_ui.InfoLabel(
+            label: '账号',
+            child: fluent_ui.TextBox(
+              controller: accountController,
+              placeholder: '邮箱 / 用户名',
+              prefix: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8.0),
+                child: Icon(fluent_ui.FluentIcons.contact),
+              ),
+              prefixMode: fluent_ui.OverlayVisibilityMode.always,
+            ),
+          ),
+          const SizedBox(height: 12),
+          fluent_ui.InfoLabel(
+            label: '密码',
+            child: fluent_ui.PasswordBox(
+              controller: passwordController,
+              placeholder: '输入密码',
+              onSubmitted: (_) => onSubmit(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              fluent_ui.HyperlinkButton(child: const Text('去注册'), onPressed: toRegister),
+              const SizedBox(width: 8),
+              fluent_ui.HyperlinkButton(child: const Text('忘记密码'), onPressed: toForgot),
+              const Spacer(),
+              fluent_ui.FilledButton(
+                onPressed: loading ? null : onSubmit,
+                child: loading
+                    ? const SizedBox(width: 18, height: 18, child: fluent_ui.ProgressRing(strokeWidth: 2))
+                    : const Text('登录'),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -423,72 +447,115 @@ class _UserCardState extends State<UserCard> {
     required Future<void> Function() onSendCode,
     required Future<void> Function() onSubmit,
   }) {
-    return Column(
-      key: const ValueKey('register'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (errorText != null)
-          fluent_ui.InfoBar(
-            title: const Text('错误'),
-            content: Text(errorText),
-            severity: fluent_ui.InfoBarSeverity.error,
+    final typo = fluent_ui.FluentTheme.of(context).typography;
+    return fluent_ui.Card(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        key: const ValueKey('register'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Icon(fluent_ui.FluentIcons.add_friend, size: 18),
+              const SizedBox(width: 8),
+              Text('创建账户', style: typo.subtitle),
+            ],
           ),
-        const SizedBox(height: 8),
-        fluent_ui.TextBox(
-          controller: qqController,
-          placeholder: 'QQ 号',
-        ),
-        const SizedBox(height: 8),
-        fluent_ui.TextBox(
-          controller: usernameController,
-          placeholder: '用户名（4-20位，字母数字下划线）',
-        ),
-        const SizedBox(height: 8),
-        fluent_ui.PasswordBox(
-          controller: passwordController,
-          placeholder: '密码（至少8位）',
-        ),
-        const SizedBox(height: 8),
-        fluent_ui.PasswordBox(
-          controller: confirmController,
-          placeholder: '确认密码',
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              flex: 3,
-              child: fluent_ui.TextBox(
-                controller: codeController,
-                placeholder: '验证码',
-              ),
+          const SizedBox(height: 12),
+          if (errorText != null) ...[
+            fluent_ui.InfoBar(
+              title: const Text('错误'),
+              content: Text(errorText),
+              severity: fluent_ui.InfoBarSeverity.error,
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 2,
-              child: fluent_ui.FilledButton(
-                onPressed: (codeSent || loading) ? null : onSendCode,
+            const SizedBox(height: 8),
+          ],
+          fluent_ui.InfoLabel(
+            label: 'QQ 号',
+            child: fluent_ui.TextBox(
+              controller: qqController,
+              placeholder: '用于生成邮箱（QQ号@qq.com）',
+              prefix: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8.0),
+                child: Icon(fluent_ui.FluentIcons.mail),
+              ),
+              prefixMode: fluent_ui.OverlayVisibilityMode.always,
+            ),
+          ),
+          const SizedBox(height: 8),
+          fluent_ui.InfoLabel(
+            label: '用户名',
+            child: fluent_ui.TextBox(
+              controller: usernameController,
+              placeholder: '4-20位，字母数字下划线',
+              prefix: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8.0),
+                child: Icon(fluent_ui.FluentIcons.contact),
+              ),
+              prefixMode: fluent_ui.OverlayVisibilityMode.always,
+            ),
+          ),
+          const SizedBox(height: 8),
+          fluent_ui.InfoLabel(
+            label: '密码',
+            child: fluent_ui.PasswordBox(
+              controller: passwordController,
+              placeholder: '至少 8 位',
+            ),
+          ),
+          const SizedBox(height: 8),
+          fluent_ui.InfoLabel(
+            label: '确认密码',
+            child: fluent_ui.PasswordBox(
+              controller: confirmController,
+              placeholder: '再次输入密码',
+            ),
+          ),
+          const SizedBox(height: 8),
+          fluent_ui.InfoLabel(
+            label: '验证码',
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: fluent_ui.TextBox(
+                    controller: codeController,
+                    placeholder: '邮件验证码',
+                    prefix: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8.0),
+                      child: Icon(fluent_ui.FluentIcons.shield),
+                    ),
+                    prefixMode: fluent_ui.OverlayVisibilityMode.always,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: fluent_ui.FilledButton(
+                    onPressed: (codeSent || loading) ? null : onSendCode,
+                    child: loading
+                        ? const SizedBox(width: 18, height: 18, child: fluent_ui.ProgressRing(strokeWidth: 2))
+                        : Text(codeSent ? '${countdown}秒' : '发送'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Spacer(),
+              fluent_ui.FilledButton(
+                onPressed: loading ? null : onSubmit,
                 child: loading
                     ? const SizedBox(width: 18, height: 18, child: fluent_ui.ProgressRing(strokeWidth: 2))
-                    : Text(codeSent ? '${countdown}秒' : '发送'),
+                    : const Text('注册'),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            const Spacer(),
-            fluent_ui.FilledButton(
-              onPressed: loading ? null : onSubmit,
-              child: loading
-                  ? const SizedBox(width: 18, height: 18, child: fluent_ui.ProgressRing(strokeWidth: 2))
-                  : const Text('注册'),
-            ),
-          ],
-        ),
-      ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -505,67 +572,102 @@ class _UserCardState extends State<UserCard> {
     required Future<void> Function() onSendCode,
     required Future<void> Function() onSubmit,
   }) {
-    return Column(
-      key: const ValueKey('forgot'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (errorText != null)
-          fluent_ui.InfoBar(
-            title: const Text('错误'),
-            content: Text(errorText),
-            severity: fluent_ui.InfoBarSeverity.error,
+    final typo = fluent_ui.FluentTheme.of(context).typography;
+    return fluent_ui.Card(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        key: const ValueKey('forgot'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Icon(fluent_ui.FluentIcons.lock, size: 18),
+              const SizedBox(width: 8),
+              Text('重置密码', style: typo.subtitle),
+            ],
           ),
-        const SizedBox(height: 8),
-        fluent_ui.TextBox(
-          controller: emailController,
-          placeholder: '注册邮箱',
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              flex: 3,
-              child: fluent_ui.TextBox(
-                controller: codeController,
-                placeholder: '验证码',
-              ),
+          const SizedBox(height: 12),
+          if (errorText != null) ...[
+            fluent_ui.InfoBar(
+              title: const Text('错误'),
+              content: Text(errorText),
+              severity: fluent_ui.InfoBarSeverity.error,
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 2,
-              child: fluent_ui.FilledButton(
-                onPressed: (codeSent || loading) ? null : onSendCode,
+            const SizedBox(height: 8),
+          ],
+          fluent_ui.InfoLabel(
+            label: '注册邮箱',
+            child: fluent_ui.TextBox(
+              controller: emailController,
+              placeholder: '例如 yourname@example.com',
+              prefix: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8.0),
+                child: Icon(fluent_ui.FluentIcons.mail),
+              ),
+              prefixMode: fluent_ui.OverlayVisibilityMode.always,
+            ),
+          ),
+          const SizedBox(height: 8),
+          fluent_ui.InfoLabel(
+            label: '验证码',
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: fluent_ui.TextBox(
+                    controller: codeController,
+                    placeholder: '邮件验证码',
+                    prefix: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8.0),
+                      child: Icon(fluent_ui.FluentIcons.shield),
+                    ),
+                    prefixMode: fluent_ui.OverlayVisibilityMode.always,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: fluent_ui.FilledButton(
+                    onPressed: (codeSent || loading) ? null : onSendCode,
+                    child: loading
+                        ? const SizedBox(width: 18, height: 18, child: fluent_ui.ProgressRing(strokeWidth: 2))
+                        : Text(codeSent ? '${countdown}秒' : '发送'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          fluent_ui.InfoLabel(
+            label: '新密码',
+            child: fluent_ui.PasswordBox(
+              controller: passwordController,
+              placeholder: '至少 8 位',
+            ),
+          ),
+          const SizedBox(height: 8),
+          fluent_ui.InfoLabel(
+            label: '确认新密码',
+            child: fluent_ui.PasswordBox(
+              controller: confirmController,
+              placeholder: '再次输入密码',
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Spacer(),
+              fluent_ui.FilledButton(
+                onPressed: loading ? null : onSubmit,
                 child: loading
                     ? const SizedBox(width: 18, height: 18, child: fluent_ui.ProgressRing(strokeWidth: 2))
-                    : Text(codeSent ? '${countdown}秒' : '发送'),
+                    : const Text('重置密码'),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        fluent_ui.PasswordBox(
-          controller: passwordController,
-          placeholder: '新密码（至少8位）',
-        ),
-        const SizedBox(height: 8),
-        fluent_ui.PasswordBox(
-          controller: confirmController,
-          placeholder: '确认新密码',
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            const Spacer(),
-            fluent_ui.FilledButton(
-              onPressed: loading ? null : onSubmit,
-              child: loading
-                  ? const SizedBox(width: 18, height: 18, child: fluent_ui.ProgressRing(strokeWidth: 2))
-                  : const Text('重置密码'),
-            ),
-          ],
-        ),
-      ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -577,11 +679,19 @@ class _UserCardState extends State<UserCard> {
   }
 
   void _onAuthChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {});
+    });
   }
 
   void _onLocationChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {});
+    });
   }
   @override
   Widget build(BuildContext context) {

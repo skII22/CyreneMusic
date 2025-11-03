@@ -28,6 +28,17 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  bool _rebuildScheduled = false;
+
+  void _scheduleRebuild() {
+    if (!mounted || _rebuildScheduled) return;
+    _rebuildScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _rebuildScheduled = false;
+      setState(() {});
+    });
+  }
   @override
   void initState() {
     super.initState();
@@ -79,66 +90,48 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _onThemeChanged() {
-    if (mounted) {
-      setState(() {});
-    }
+    _scheduleRebuild();
   }
 
   void _onUrlServiceChanged() {
-    if (mounted) {
-      setState(() {});
-    }
+    _scheduleRebuild();
   }
 
   void _onAuthChanged() {
-    if (mounted) {
-      setState(() {});
-      // 登录状态变化时获取/清除位置信息
-      if (AuthService().isLoggedIn) {
-        print('👤 [SettingsPage] 用户已登录，开始获取IP归属地...');
-        LocationService().fetchLocation();
-      } else {
-        print('👤 [SettingsPage] 用户已退出，清除IP归属地...');
-        LocationService().clearLocation();
-      }
+    // 登录状态变化时获取/清除位置信息
+    if (AuthService().isLoggedIn) {
+      print('👤 [SettingsPage] 用户已登录，开始获取IP归属地...');
+      LocationService().fetchLocation();
+    } else {
+      print('👤 [SettingsPage] 用户已退出，清除IP归属地...');
+      LocationService().clearLocation();
     }
+    _scheduleRebuild();
   }
 
   void _onLocationChanged() {
     print('🌍 [SettingsPage] 位置信息已更新，刷新UI...');
-    if (mounted) {
-      setState(() {});
-    }
+    _scheduleRebuild();
   }
 
   void _onLayoutPreferenceChanged() {
-    if (mounted) {
-      setState(() {});
-    }
+    _scheduleRebuild();
   }
 
   void _onCacheChanged() {
-    if (mounted) {
-      setState(() {});
-    }
+    _scheduleRebuild();
   }
 
   void _onDownloadChanged() {
-    if (mounted) {
-      setState(() {});
-    }
+    _scheduleRebuild();
   }
 
   void _onAudioQualityChanged() {
-    if (mounted) {
-      setState(() {});
-    }
+    _scheduleRebuild();
   }
 
   void _onPlayerBackgroundChanged() {
-    if (mounted) {
-      setState(() {});
-    }
+    _scheduleRebuild();
   }
 
 

@@ -39,9 +39,12 @@ class _NetworkSettingsState extends State<NetworkSettings> {
 
   void _handleUrlChanged() {
     if (!mounted) return;
-    setState(() {});
-    _testConnection();
-    _startAutoRefresh();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {});
+      _testConnection();
+      _startAutoRefresh();
+    });
   }
 
   void _startAutoRefresh() {

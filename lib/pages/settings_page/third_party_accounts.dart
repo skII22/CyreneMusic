@@ -37,7 +37,11 @@ class _ThirdPartyAccountsState extends State<ThirdPartyAccounts> {
   }
 
   void _onAuthChanged() {
-    _refresh();
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _refresh();
+    });
   }
 
   @override

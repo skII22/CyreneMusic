@@ -95,7 +95,7 @@ class _FluentMainLayoutState extends State<FluentMainLayout> with WindowListener
       fluent_ui.PaneItem(
         icon: const Icon(fluent_ui.FluentIcons.settings),
         title: const Text('设置'),
-        body: const SettingsPage(),
+        body: const _DeferredSettingsPage(),
       ),
     ];
   }
@@ -113,7 +113,7 @@ class _FluentMainLayoutState extends State<FluentMainLayout> with WindowListener
       children.add(const DeveloperPage());
     }
     // footer: 设置
-    children.add(const SettingsPage());
+    children.add(const _DeferredSettingsPage());
     return children;
   }
 
@@ -174,33 +174,45 @@ class _FluentMainLayoutState extends State<FluentMainLayout> with WindowListener
   /// 认证状态变化回调
   void _onAuthChanged() {
     if (!mounted) return;
-    setState(() {});
+    // 使用 addPostFrameCallback 避免在构建期间调用 setState
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {});
+    });
   }
 
   /// 开发者模式变化回调
   void _onDeveloperModeChanged() {
     if (!mounted) return;
-    setState(() {
-      // 开发者模式切换时，检查当前索引是否有效
-      final totalPageCount = _paneItems.length + _footerItems.length;
-      if (_navigationProvider.currentIndex >= totalPageCount) {
-        _navigationProvider.navigateTo(0);
-      }
+    // 使用 addPostFrameCallback 延迟到构建完成后再调用 setState
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        // 开发者模式切换时，检查当前索引是否有效
+        final totalPageCount = _paneItems.length + _footerItems.length;
+        if (_navigationProvider.currentIndex >= totalPageCount) {
+          _navigationProvider.navigateTo(0);
+        }
+      });
     });
   }
 
   /// 导航状态变化回调
   void _onNavigationChanged() {
     if (!mounted) return;
-    setState(() {});
-    // 通知页面可见性变化
-    PageVisibilityNotifier().setCurrentPage(_navigationProvider.currentIndex);
-    
-    // 设置页面点击时触发开发者模式彩蛋
-    final settingsIndex = _paneItems.length;
-    if (_navigationProvider.currentIndex == settingsIndex) {
-      DeveloperModeService().onSettingsClicked();
-    }
+    // 使用 addPostFrameCallback 避免在 NavigationView 布局过程中触发同步 setState
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {});
+      // 通知页面可见性变化
+      PageVisibilityNotifier().setCurrentPage(_navigationProvider.currentIndex);
+
+      // 设置页面点击时触发开发者模式彩蛋
+      final settingsIndex = _paneItems.length;
+      if (_navigationProvider.currentIndex == settingsIndex) {
+        DeveloperModeService().onSettingsClicked();
+      }
+    });
   }
 
   void _handleCaptionMinimize() {
@@ -280,7 +292,10 @@ class _FluentMainLayoutState extends State<FluentMainLayout> with WindowListener
 
   /// 处理导航项点击
   void _onPaneIndexChanged(int index) {
-    _navigationProvider.navigateTo(index);
+    // 推迟到当前帧结束再切换，避免在 NavigationView 布局阶段触发同步状态更新
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _navigationProvider.navigateTo(index);
+    });
   }
 
   Future<void> _handleUserButtonTap() async {
@@ -655,6 +670,35 @@ class _FluentMainLayoutState extends State<FluentMainLayout> with WindowListener
     }
 
     return content;
+  }
+}
+
+/// 首次进入设置页时延迟一个帧再渲染真实内容，避免在 NavigationView 首帧布局期间产生重入布局
+class _DeferredSettingsPage extends StatefulWidget {
+  const _DeferredSettingsPage({super.key});
+
+  @override
+  State<_DeferredSettingsPage> createState() => _DeferredSettingsPageState();
+}
+
+class _DeferredSettingsPageState extends State<_DeferredSettingsPage> {
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _ready = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_ready) {
+      return const Center(child: fluent_ui.ProgressRing());
+    }
+    return const SettingsPage();
   }
 }
 

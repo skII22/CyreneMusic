@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart' as fluent_ui;
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../services/netease_login_service.dart';
 
@@ -18,15 +19,26 @@ Future<bool?> showNeteaseQrDialog(BuildContext context, int userId) async {
 
   if (!context.mounted) return null;
 
-  final success = await showDialog<bool>(
-    context: context,
-    barrierDismissible: true,
-    builder: (context) => NeteaseQrDialog(
-      userId: userId,
-      qrUrl: created!.qrUrl,
-      qrKey: created.key,
-    ),
-  );
+  final bool isFluent = fluent_ui.FluentTheme.maybeOf(context) != null;
+  final success = isFluent
+      ? await fluent_ui.showDialog<bool>(
+          context: context,
+          barrierDismissible: true,
+          builder: (context) => NeteaseQrDialog(
+            userId: userId,
+            qrUrl: created!.qrUrl,
+            qrKey: created.key,
+          ),
+        )
+      : await showDialog<bool>(
+          context: context,
+          barrierDismissible: true,
+          builder: (context) => NeteaseQrDialog(
+            userId: userId,
+            qrUrl: created!.qrUrl,
+            qrKey: created.key,
+          ),
+        );
 
   if (success == true && context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -108,6 +120,59 @@ class _NeteaseQrDialogState extends State<NeteaseQrDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isFluent = fluent_ui.FluentTheme.maybeOf(context) != null;
+    if (isFluent) {
+      final typo = fluent_ui.FluentTheme.of(context).typography;
+      return fluent_ui.ContentDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.qr_code, size: 18),
+            const SizedBox(width: 8),
+            Text('绑定网易云账号', style: typo.subtitle),
+          ],
+        ),
+        content: SizedBox(
+          width: 380,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              fluent_ui.Card(
+                padding: const EdgeInsets.all(12),
+                child: SizedBox(
+                  width: 240,
+                  height: 240,
+                  child: Center(
+                    child: QrImageView(
+                      data: widget.qrUrl,
+                      version: QrVersions.auto,
+                      size: 220,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SelectableText(
+                widget.qrUrl,
+                style: typo.caption,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _statusText,
+                style: typo.caption,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          fluent_ui.Button(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('关闭'),
+          ),
+        ],
+      );
+    }
+
     return AlertDialog(
       title: const Row(
         children: [
