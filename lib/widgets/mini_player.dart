@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'dart:ui' as ui;
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/player_service.dart';
@@ -7,6 +8,7 @@ import '../pages/player_page.dart';
 import '../services/playlist_queue_service.dart';
 import '../services/play_history_service.dart';
 import '../models/track.dart';
+import '../utils/theme_manager.dart';
 
 /// 迷你播放器组件（底部播放栏）
 class MiniPlayer extends StatefulWidget {
@@ -28,6 +30,65 @@ class _MiniPlayerState extends State<MiniPlayer> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
+  }
+
+  Widget _buildCenterControlsFluent(PlayerService player, BuildContext context, {bool hideSkip = false}) {
+    const double skipIconSize = 20;
+    const double playIconSize = 22;
+    final theme = fluent.FluentTheme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (!hideSkip)
+          fluent.IconButton(
+            icon: Icon(Icons.skip_previous_rounded, size: skipIconSize, color: theme.resources.textFillColorPrimary),
+            onPressed: player.hasPrevious ? () => player.playPrevious() : null,
+          ),
+        if (player.isLoading)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8.0),
+            child: SizedBox(width: 22, height: 22, child: fluent.ProgressRing(strokeWidth: 3)),
+          )
+        else
+          fluent.IconButton(
+            icon: Icon(player.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                size: playIconSize, color: theme.accentColor.defaultBrushFor(theme.brightness)),
+            onPressed: () => player.togglePlayPause(),
+          ),
+        if (!hideSkip)
+          fluent.IconButton(
+            icon: Icon(Icons.skip_next_rounded, size: skipIconSize, color: theme.resources.textFillColorPrimary),
+            onPressed: player.hasNext ? () => player.playNext() : null,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildRightPanelFluent(PlayerService player, BuildContext context) {
+    final theme = fluent.FluentTheme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          _formatDuration(player.position),
+          style: TextStyle(fontSize: 12, color: theme.resources.textFillColorSecondary),
+        ),
+        const Text(' / '),
+        Text(
+          _formatDuration(player.duration),
+          style: TextStyle(fontSize: 12, color: theme.resources.textFillColorSecondary),
+        ),
+        const SizedBox(width: 12),
+        fluent.IconButton(
+          icon: Icon(_volumeIcon(player.volume), color: theme.resources.textFillColorPrimary),
+          onPressed: () => _showVolumeDialog(context, player),
+        ),
+        fluent.IconButton(
+          icon: Icon(Icons.queue_music_rounded, color: theme.resources.textFillColorPrimary),
+          onPressed: () => _showQueueSheet(context),
+        ),
+      ],
+    );
   }
 
   @override
@@ -250,13 +311,21 @@ class _MiniPlayerState extends State<MiniPlayer> with SingleTickerProviderStateM
     required Color? themeTint,
     required bool isCompactWidth,
   }) {
+    final bool isFluent = ThemeManager().isFluentFramework;
+    final bool effectEnabled = ThemeManager().windowEffect.name != 'disabled';
+    final fluentBg = isFluent ? fluent.FluentTheme.of(context).micaBackgroundColor : null;
+    final Color bgColor = isCompactWidth
+        ? Colors.transparent
+        : (isFluent
+            ? (effectEnabled ? Colors.transparent : (fluentBg ?? colorScheme.surface))
+            : colorScheme.surfaceContainerHighest);
     return Container(
       key: const ValueKey('mini_expanded'),
       height: 90,
       margin: isCompactWidth ? const EdgeInsets.fromLTRB(12, 8, 12, 8) : EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: isCompactWidth ? Colors.transparent : colorScheme.surfaceContainerHighest,
+        color: bgColor,
         borderRadius: BorderRadius.circular(isCompactWidth ? 28 : 0),
         border: isCompactWidth ? Border.all(color: Colors.white.withOpacity(0.18), width: 1) : null,
         boxShadow: [
@@ -270,14 +339,15 @@ class _MiniPlayerState extends State<MiniPlayer> with SingleTickerProviderStateM
       child: isCompactWidth
           ? Stack(
               children: [
-                Positioned.fill(
-                  child: ClipRect(
-                    child: BackdropFilter(
-                      filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                      child: const SizedBox.shrink(),
+                if (!(isFluent && effectEnabled))
+                  Positioned.fill(
+                    child: ClipRect(
+                      child: BackdropFilter(
+                        filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                        child: const SizedBox.shrink(),
+                      ),
                     ),
                   ),
-                ),
                 Positioned.fill(
                   child: Container(
                     decoration: BoxDecoration(
@@ -317,7 +387,8 @@ class _MiniPlayerState extends State<MiniPlayer> with SingleTickerProviderStateM
                 ),
                 Column(
                   children: [
-                    _buildProgressBar(player, colorScheme),
+                    if (!ThemeManager().isFluentFramework)
+                      _buildProgressBar(player, colorScheme),
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -346,7 +417,9 @@ class _MiniPlayerState extends State<MiniPlayer> with SingleTickerProviderStateM
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            _buildCenterControls(player, colorScheme, hideSkip: true),
+                                            ThemeManager().isFluentFramework
+                                                ? _buildCenterControlsFluent(player, context, hideSkip: true)
+                                                : _buildCenterControls(player, colorScheme, hideSkip: true),
                                             IconButton(
                                               icon: Icon(Icons.queue_music_rounded, color: colorScheme.onSurface),
                                               tooltip: '播放列表',
@@ -373,7 +446,11 @@ class _MiniPlayerState extends State<MiniPlayer> with SingleTickerProviderStateM
                                     ),
                                     Expanded(
                                       flex: 4,
-                                      child: Center(child: _buildCenterControls(player, colorScheme, hideSkip: true)),
+                                      child: Center(
+                                      child: ThemeManager().isFluentFramework
+                                          ? _buildCenterControlsFluent(player, context, hideSkip: true)
+                                          : _buildCenterControls(player, colorScheme, hideSkip: true),
+                                    ),
                                     ),
                                     Expanded(
                                       flex: 5,
@@ -424,11 +501,15 @@ class _MiniPlayerState extends State<MiniPlayer> with SingleTickerProviderStateM
                                 ),
                                 Align(
                                   alignment: Alignment.center,
-                                  child: _buildCenterControls(player, colorScheme),
+                                  child: ThemeManager().isFluentFramework
+                                      ? _buildCenterControlsFluent(player, context)
+                                      : _buildCenterControls(player, colorScheme),
                                 ),
                                 Align(
                                   alignment: Alignment.centerRight,
-                                  child: _buildRightPanel(player, colorScheme, context),
+                                  child: ThemeManager().isFluentFramework
+                                      ? _buildRightPanelFluent(player, context)
+                                      : _buildRightPanel(player, colorScheme, context),
                                 ),
                               ],
                             );
@@ -442,7 +523,8 @@ class _MiniPlayerState extends State<MiniPlayer> with SingleTickerProviderStateM
             )
           : Column(
               children: [
-                _buildProgressBar(player, colorScheme),
+                if (!ThemeManager().isFluentFramework)
+                  _buildProgressBar(player, colorScheme),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -471,7 +553,9 @@ class _MiniPlayerState extends State<MiniPlayer> with SingleTickerProviderStateM
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        _buildCenterControls(player, colorScheme, hideSkip: true),
+                                        ThemeManager().isFluentFramework
+                                            ? _buildCenterControlsFluent(player, context, hideSkip: true)
+                                            : _buildCenterControls(player, colorScheme, hideSkip: true),
                                         IconButton(
                                           icon: Icon(Icons.queue_music_rounded, color: colorScheme.onSurface),
                                           tooltip: '播放列表',
@@ -498,7 +582,11 @@ class _MiniPlayerState extends State<MiniPlayer> with SingleTickerProviderStateM
                                 ),
                                 Expanded(
                                   flex: 4,
-                                  child: Center(child: _buildCenterControls(player, colorScheme, hideSkip: true)),
+                                  child: Center(
+                                    child: ThemeManager().isFluentFramework
+                                        ? _buildCenterControlsFluent(player, context, hideSkip: true)
+                                        : _buildCenterControls(player, colorScheme, hideSkip: true),
+                                  ),
                                 ),
                                 Expanded(
                                   flex: 5,
@@ -647,7 +735,11 @@ class _MiniPlayerState extends State<MiniPlayer> with SingleTickerProviderStateM
     final progress = player.duration.inMilliseconds > 0
         ? player.position.inMilliseconds / player.duration.inMilliseconds
         : 0.0;
-
+    if (ThemeManager().isFluentFramework) {
+      return fluent.ProgressBar(
+        value: progress,
+      );
+    }
     return LinearProgressIndicator(
       value: progress,
       minHeight: 2,
@@ -843,6 +935,40 @@ class _MiniPlayerState extends State<MiniPlayer> with SingleTickerProviderStateM
 
   Future<void> _showVolumeDialog(BuildContext context, PlayerService player) async {
     double temp = player.volume;
+    if (ThemeManager().isFluentFramework) {
+      await fluent.showDialog(
+        context: context,
+        builder: (context) {
+          return fluent.ContentDialog(
+            title: const Text('音量'),
+            content: StatefulBuilder(
+              builder: (context, setLocal) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    fluent.Slider(
+                      value: temp,
+                      onChanged: (v) {
+                        setLocal(() => temp = v);
+                        player.setVolume(v);
+                      },
+                    ),
+                    Text('${(temp * 100).toInt()}%'),
+                  ],
+                );
+              },
+            ),
+            actions: [
+              fluent.FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('关闭'),
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
     await showDialog(
       context: context,
       builder: (context) {
@@ -887,6 +1013,73 @@ class _MiniPlayerState extends State<MiniPlayer> with SingleTickerProviderStateM
         ? queueService.queue
         : history.map((h) => h.toTrack()).toList();
 
+    if (ThemeManager().isFluentFramework) {
+      await fluent.showDialog(
+        context: context,
+        builder: (context) {
+          return fluent.ContentDialog(
+            title: Text(hasQueue ? '播放队列' : '播放历史'),
+            content: SizedBox(
+              width: 520,
+              height: 420,
+              child: displayList.isEmpty
+                  ? const Center(child: Text('播放列表为空'))
+                  : ListView.separated(
+                      itemCount: displayList.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, i) {
+                        final Track t = displayList[i] as Track;
+                        final isCurrent = currentTrack != null &&
+                            t.id.toString() == currentTrack.id.toString() &&
+                            t.source == currentTrack.source;
+                        return fluent.Card(
+                          padding: const EdgeInsets.all(8),
+                          child: fluent.ListTile(
+                            title: Text(t.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                            subtitle: Text(t.artists, maxLines: 1, overflow: TextOverflow.ellipsis),
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: CachedNetworkImage(
+                                imageUrl: t.picUrl,
+                                imageBuilder: (context, imageProvider) {
+                                  PlaylistQueueService().updateCoverProvider(t, imageProvider);
+                                  return Image(image: imageProvider, width: 44, height: 44, fit: BoxFit.cover);
+                                },
+                                placeholder: (context, url) => Container(width: 44, height: 44, color: fluent.Colors.grey[20]),
+                                errorWidget: (context, url, error) => Container(
+                                  width: 44,
+                                  height: 44,
+                                  color: fluent.Colors.grey[20],
+                                  child: const Icon(Icons.music_note),
+                                ),
+                              ),
+                            ),
+                            tileColor: isCurrent
+                                ? WidgetStateProperty.all(
+                                    fluent.FluentTheme.of(context).resources.controlFillColorSecondary,
+                                  )
+                                : null,
+                            onPressed: () {
+                              final coverProvider = PlaylistQueueService().getCoverProvider(t);
+                              PlayerService().playTrack(t, coverProvider: coverProvider);
+                              Navigator.pop(context);
+                            },
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            actions: [
+              fluent.FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('关闭'),
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
     await showModalBottomSheet(
       context: context,
       showDragHandle: true,

@@ -266,7 +266,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
               padding: EdgeInsets.zero,
             ),
           ),
-          const Divider(height: 1),
+          // Removed Divider to avoid white line between header and content under acrylic/mica
           Expanded(
             child: _buildFluentSlidingSwitcher(
               _buildFluentContent(context, service),

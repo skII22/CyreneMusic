@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:http/http.dart' as http;
 import '../services/url_service.dart';
 import '../services/playlist_service.dart';
 import '../services/auth_service.dart';
 import '../models/playlist.dart';
 import '../models/track.dart';
+import '../utils/theme_manager.dart';
 
 /// 音乐平台枚举
 enum MusicPlatform {
@@ -28,6 +30,7 @@ class ImportPlaylistDialog {
     if (RegExp(r'^\d+$').hasMatch(trimmedInput)) {
       return trimmedInput;
     }
+ 
     
     // 尝试从URL中解析ID
     try {
@@ -159,135 +162,186 @@ class ImportPlaylistDialog {
   static Future<void> show(BuildContext context) async {
     final controller = TextEditingController();
     MusicPlatform selectedPlatform = MusicPlatform.netease;
-
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.cloud_download, size: 24),
-              SizedBox(width: 12),
-              Text('导入歌单'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 平台选择
-              const Text(
-                '选择平台',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: MusicPlatform.values.map((platform) {
-                  final isSelected = selectedPlatform == platform;
-                  return Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                      child: ChoiceChip(
-                        label: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(platform.icon),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                platform.name,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                        selected: isSelected,
-                        onSelected: (selected) {
-                          if (selected) {
-                            setState(() {
-                              selectedPlatform = platform;
-                            });
-                          }
-                        },
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-              
-              const SizedBox(height: 16),
-              const Text(
-                '输入歌单信息',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                selectedPlatform == MusicPlatform.netease
-                    ? '支持以下两种输入方式：\n• 直接输入歌单ID，如：19723756\n• 粘贴完整URL，如：https://music.163.com/#/playlist?id=19723756'
-                    : '支持以下两种输入方式：\n• 直接输入歌单ID，如：8522515502\n• 粘贴完整URL，如：https://y.qq.com/n/ryqq/playlist/8522515502',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+    Map<String, dynamic>? result;
+    if (ThemeManager().isFluentFramework) {
+      String? errorText;
+      result = await fluent.showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setState) => fluent.ContentDialog(
+            title: const Text('导入歌单'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('选择平台', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                fluent.DropDownButton(
+                  title: Text('${selectedPlatform.icon} ${selectedPlatform.name}'),
+                  items: MusicPlatform.values.map((platform) {
+                    return fluent.MenuFlyoutItem(
+                      text: Text('${platform.icon} ${platform.name}'),
+                      onPressed: () {
+                        setState(() => selectedPlatform = platform);
+                      },
+                    );
+                  }).toList(),
                 ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                decoration: const InputDecoration(
-                  labelText: '歌单ID或URL',
-                  hintText: '例如: 19723756 或完整URL',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 16),
+                const Text('输入歌单信息', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Text(
+                  selectedPlatform == MusicPlatform.netease
+                      ? '支持以下两种输入方式：\n• 直接输入歌单ID，如：19723756\n• 粘贴完整URL，如：https://music.163.com/#/playlist?id=19723756'
+                      : '支持以下两种输入方式：\n• 直接输入歌单ID，如：8522515502\n• 粘贴完整URL，如：https://y.qq.com/n/ryqq/playlist/8522515502',
+                  style: const TextStyle(fontSize: 12),
                 ),
-                autofocus: true,
-                maxLines: 2,
-                minLines: 1,
+                const SizedBox(height: 12),
+                fluent.TextBox(
+                  controller: controller,
+                  placeholder: '歌单ID或URL',
+                  maxLines: 2,
+                ),
+                if (errorText != null) ...[
+                  const SizedBox(height: 8),
+                  fluent.InfoBar(title: Text(errorText!), severity: fluent.InfoBarSeverity.warning),
+                ],
+              ],
+            ),
+            actions: [
+              fluent.Button(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('取消'),
+              ),
+              fluent.FilledButton(
+                onPressed: () {
+                  final input = controller.text.trim();
+                  if (input.isEmpty) {
+                    setState(() => errorText = '请输入歌单ID或URL');
+                    return;
+                  }
+                  String? playlistId;
+                  if (selectedPlatform == MusicPlatform.netease) {
+                    playlistId = _parseNeteasePlaylistId(input);
+                  } else {
+                    playlistId = _parseQQPlaylistId(input);
+                  }
+                  if (playlistId == null) {
+                    setState(() => errorText = '无效的${selectedPlatform.name}歌单ID或URL格式');
+                    return;
+                  }
+                  Navigator.pop(context, {
+                    'platform': selectedPlatform,
+                    'playlistId': playlistId,
+                  });
+                },
+                child: const Text('下一步'),
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final input = controller.text.trim();
-                if (input.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('请输入歌单ID或URL')),
-                  );
-                  return;
-                }
-                
-                // 尝试解析歌单ID
-                String? playlistId;
-                if (selectedPlatform == MusicPlatform.netease) {
-                  playlistId = _parseNeteasePlaylistId(input);
-                } else {
-                  playlistId = _parseQQPlaylistId(input);
-                }
-                
-                if (playlistId == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('无效的${selectedPlatform.name}歌单ID或URL格式\n请检查输入是否正确'),
-                      duration: const Duration(seconds: 3),
-                    ),
-                  );
-                  return;
-                }
-                
-                Navigator.pop(context, {
-                  'platform': selectedPlatform,
-                  'playlistId': playlistId,
-                });
-              },
-              child: const Text('下一步'),
-            ),
-          ],
         ),
-      ),
-    );
+      );
+    } else {
+      result = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.cloud_download, size: 24),
+                SizedBox(width: 12),
+                Text('导入歌单'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('选择平台', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Row(
+                  children: MusicPlatform.values.map((platform) {
+                    final isSelected = selectedPlatform == platform;
+                    return Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                        child: ChoiceChip(
+                          label: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(platform.icon),
+                              const SizedBox(width: 4),
+                              Flexible(child: Text(platform.name, overflow: TextOverflow.ellipsis)),
+                            ],
+                          ),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            if (selected) setState(() => selectedPlatform = platform);
+                          },
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                const Text('输入歌单信息', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text(
+                  selectedPlatform == MusicPlatform.netease
+                      ? '支持以下两种输入方式：\n• 直接输入歌单ID，如：19723756\n• 粘贴完整URL，如：https://music.163.com/#/playlist?id=19723756'
+                      : '支持以下两种输入方式：\n• 直接输入歌单ID，如：8522515502\n• 粘贴完整URL，如：https://y.qq.com/n/ryqq/playlist/8522515502',
+                  style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  decoration: const InputDecoration(
+                    labelText: '歌单ID或URL',
+                    hintText: '例如: 19723756 或完整URL',
+                    border: OutlineInputBorder(),
+                  ),
+                  autofocus: true,
+                  maxLines: 2,
+                  minLines: 1,
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final input = controller.text.trim();
+                  if (input.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请输入歌单ID或URL')));
+                    return;
+                  }
+                  String? playlistId;
+                  if (selectedPlatform == MusicPlatform.netease) {
+                    playlistId = _parseNeteasePlaylistId(input);
+                  } else {
+                    playlistId = _parseQQPlaylistId(input);
+                  }
+                  if (playlistId == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('无效的${selectedPlatform.name}歌单ID或URL格式\n请检查输入是否正确'), duration: const Duration(seconds: 3)),
+                    );
+                    return;
+                  }
+                  Navigator.pop(context, {
+                    'platform': selectedPlatform,
+                    'playlistId': playlistId,
+                  });
+                },
+                child: const Text('下一步'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     if (result != null && context.mounted) {
       final platform = result['platform'] as MusicPlatform;
@@ -300,25 +354,48 @@ class ImportPlaylistDialog {
   static Future<void> _fetchAndImportPlaylist(
       BuildContext context, MusicPlatform platform, String playlistId) async {
     // 显示加载对话框
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => Center(
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(height: 16),
-                Text('正在获取${platform.name}歌单信息...'),
-              ],
+    if (ThemeManager().isFluentFramework) {
+      fluent.showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => WillPopScope(
+          onWillPop: () async => false,
+          child: Center(
+            child: fluent.Card(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const fluent.ProgressRing(),
+                  const SizedBox(height: 16),
+                  Text('正在获取${platform.name}歌单信息...'),
+                ],
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
+    } else {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Center(
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text('正在获取${platform.name}歌单信息...'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     try {
       final baseUrl = UrlService().baseUrl;
@@ -355,19 +432,35 @@ class ImportPlaylistDialog {
       if (!context.mounted) return;
       Navigator.pop(context); // 关闭加载对话框
 
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('导入失败'),
-          content: Text('获取歌单失败: $e'),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('确定'),
-            ),
-          ],
-        ),
-      );
+      if (ThemeManager().isFluentFramework) {
+        await fluent.showDialog(
+          context: context,
+          builder: (context) => fluent.ContentDialog(
+            title: const Text('导入失败'),
+            content: Text('获取歌单失败: $e'),
+            actions: [
+              fluent.FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('确定'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('导入失败'),
+            content: Text('获取歌单失败: $e'),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('确定'),
+              ),
+            ],
+          ),
+        );
+      }
     }
   }
 
@@ -383,16 +476,165 @@ class ImportPlaylistDialog {
 
     if (!context.mounted) return;
 
-    final targetPlaylist = await showDialog<Playlist>(
-      context: context,
-      builder: (context) => _SelectTargetPlaylistDialog(
-        sourcePlaylist: sourcePlaylist,
-      ),
-    );
+    Playlist? targetPlaylist;
+    if (ThemeManager().isFluentFramework) {
+      targetPlaylist = await _showFluentSelectTargetPlaylistDialog(context, sourcePlaylist);
+    } else {
+      targetPlaylist = await showDialog<Playlist>(
+        context: context,
+        builder: (context) => _SelectTargetPlaylistDialog(
+          sourcePlaylist: sourcePlaylist,
+        ),
+      );
+    }
 
     if (targetPlaylist != null && context.mounted) {
       await _importTracks(context, sourcePlaylist, targetPlaylist);
     }
+  }
+
+  /// Fluent UI: 选择目标歌单对话框
+  static Future<Playlist?> _showFluentSelectTargetPlaylistDialog(
+    BuildContext context,
+    UniversalPlaylist sourcePlaylist,
+  ) async {
+    final playlistService = PlaylistService();
+    if (playlistService.playlists.isEmpty) {
+      await playlistService.loadPlaylists();
+    }
+    if (!context.mounted) return null;
+
+    return fluent.showDialog<Playlist>(
+      context: context,
+      builder: (context) => fluent.ContentDialog(
+        title: const Text('选择目标歌单'),
+        content: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              fluent.Card(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Image.network(
+                        sourcePlaylist.coverImgUrl,
+                        width: 60,
+                        height: 60,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => const SizedBox(
+                          width: 60,
+                          height: 60,
+                          child: Icon(fluent.FluentIcons.music_in_collection),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('${sourcePlaylist.platform.icon} ${sourcePlaylist.name}',
+                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 2),
+                          Text('创建者: ${sourcePlaylist.creator}', style: const TextStyle(fontSize: 12)),
+                          Text('歌曲数量: ${sourcePlaylist.tracks.length} 首', style: const TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Divider(),
+              fluent.ListTile(
+                leading: const Icon(fluent.FluentIcons.add),
+                title: const Text('新建歌单'),
+                subtitle: const Text('创建一个新歌单来导入'),
+                onPressed: () async {
+                  final name = await fluent.showDialog<String>(
+                    context: context,
+                    builder: (context) {
+                      final controller = TextEditingController(text: sourcePlaylist.name);
+                      String? err;
+                      return fluent.ContentDialog(
+                        title: const Text('新建歌单'),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            fluent.TextBox(controller: controller, placeholder: '歌单名称', autofocus: true),
+                            if (err != null) ...[
+                              const SizedBox(height: 8),
+                              fluent.InfoBar(title: Text(err!), severity: fluent.InfoBarSeverity.warning),
+                            ],
+                          ],
+                        ),
+                        actions: [
+                          fluent.Button(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('取消'),
+                          ),
+                          fluent.FilledButton(
+                            onPressed: () {
+                              final n = controller.text.trim();
+                              if (n.isEmpty) {
+                                err = '歌单名称不能为空';
+                                (context as Element).markNeedsBuild();
+                                return;
+                              }
+                              Navigator.pop(context, n);
+                            },
+                            child: const Text('创建'),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                  if (name != null) {
+                    final success = await playlistService.createPlaylist(name);
+                    if (success && context.mounted) {
+                      await Future.delayed(const Duration(milliseconds: 400));
+                      Navigator.pop(
+                        context,
+                        playlistService.playlists.firstWhere(
+                          (p) => p.name == name,
+                          orElse: () => playlistService.playlists.last,
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+              const Divider(),
+              SizedBox(
+                height: 320,
+                child: ListView.builder(
+                  itemCount: playlistService.playlists.length,
+                  itemBuilder: (context, index) {
+                    final p = playlistService.playlists[index];
+                    return fluent.ListTile(
+                      leading: Icon(p.isDefault ? fluent.FluentIcons.heart : fluent.FluentIcons.music_in_collection),
+                      title: Text(p.name),
+                      subtitle: Text('${p.trackCount} 首歌曲'),
+                      onPressed: () => Navigator.pop(context, p),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          fluent.Button(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// 导入歌曲到目标歌单
@@ -404,17 +646,43 @@ class ImportPlaylistDialog {
     final playlistService = PlaylistService();
 
     // 显示导入进度对话框
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => WillPopScope(
-        onWillPop: () async => false,
-        child: _ImportProgressDialog(
-          sourcePlaylist: sourcePlaylist,
-          targetPlaylist: targetPlaylist,
+    if (ThemeManager().isFluentFramework) {
+      fluent.showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => WillPopScope(
+          onWillPop: () async => false,
+          child: Center(
+            child: fluent.Card(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const fluent.ProgressRing(),
+                  const SizedBox(height: 16),
+                  const Text('正在导入歌曲...'),
+                  const SizedBox(height: 8),
+                  Text('从「${sourcePlaylist.name}」到「${targetPlaylist.name}」', style: const TextStyle(fontSize: 12)),
+                  Text('共 ${sourcePlaylist.tracks.length} 首歌曲', style: const TextStyle(fontSize: 12)),
+                ],
+              ),
+            ),
+          ),
         ),
-      ),
-    );
+      );
+    } else {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => WillPopScope(
+          onWillPop: () async => false,
+          child: _ImportProgressDialog(
+            sourcePlaylist: sourcePlaylist,
+            targetPlaylist: targetPlaylist,
+          ),
+        ),
+      );
+    }
 
     try {
       int successCount = 0;
@@ -446,63 +714,106 @@ class ImportPlaylistDialog {
       Navigator.pop(context); // 关闭进度对话框
 
       // 显示结果
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green),
-              SizedBox(width: 12),
-              Text('导入完成'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(sourcePlaylist.platform.icon),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text('来源: ${sourcePlaylist.platform.name}'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text('歌单名称: ${sourcePlaylist.name}'),
-              const SizedBox(height: 8),
-              Text('目标歌单: ${targetPlaylist.name}'),
-              const SizedBox(height: 8),
-              Text('成功导入: $successCount 首'),
-              if (failCount > 0) Text('导入失败: $failCount 首'),
-            ],
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('确定'),
+      if (ThemeManager().isFluentFramework) {
+        await fluent.showDialog(
+          context: context,
+          builder: (context) => fluent.ContentDialog(
+            title: const Text('导入完成'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${sourcePlaylist.platform.icon} 来源: ${sourcePlaylist.platform.name}'),
+                const SizedBox(height: 6),
+                Text('歌单名称: ${sourcePlaylist.name}'),
+                const SizedBox(height: 6),
+                Text('目标歌单: ${targetPlaylist.name}'),
+                const SizedBox(height: 6),
+                Text('成功导入: $successCount 首'),
+                if (failCount > 0) Text('导入失败: $failCount 首'),
+              ],
             ),
-          ],
-        ),
-      );
+            actions: [
+              fluent.FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('确定'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green),
+                SizedBox(width: 12),
+                Text('导入完成'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(sourcePlaylist.platform.icon),
+                    const SizedBox(width: 4),
+                    Expanded(child: Text('来源: ${sourcePlaylist.platform.name}')),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text('歌单名称: ${sourcePlaylist.name}'),
+                const SizedBox(height: 8),
+                Text('目标歌单: ${targetPlaylist.name}'),
+                const SizedBox(height: 8),
+                Text('成功导入: $successCount 首'),
+                if (failCount > 0) Text('导入失败: $failCount 首'),
+              ],
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('确定'),
+              ),
+            ],
+          ),
+        );
+      }
     } catch (e) {
       if (!context.mounted) return;
       Navigator.pop(context); // 关闭进度对话框
 
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('导入失败'),
-          content: Text('导入过程中发生错误: $e'),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('确定'),
-            ),
-          ],
-        ),
-      );
+      if (ThemeManager().isFluentFramework) {
+        await fluent.showDialog(
+          context: context,
+          builder: (context) => fluent.ContentDialog(
+            title: const Text('导入失败'),
+            content: Text('导入过程中发生错误: $e'),
+            actions: [
+              fluent.FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('确定'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('导入失败'),
+            content: Text('导入过程中发生错误: $e'),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('确定'),
+              ),
+            ],
+          ),
+        );
+      }
     }
   }
 }

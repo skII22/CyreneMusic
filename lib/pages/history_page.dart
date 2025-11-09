@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import '../services/play_history_service.dart';
 import '../services/player_service.dart';
 import '../models/track.dart';
+import '../utils/theme_manager.dart';
 
 /// 播放历史页面
 class HistoryPage extends StatefulWidget {
@@ -14,6 +17,10 @@ class HistoryPage extends StatefulWidget {
 
 class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClientMixin {
   final PlayHistoryService _historyService = PlayHistoryService();
+  final ThemeManager _themeManager = ThemeManager();
+  String? _fluentInfoText;
+  fluent.InfoBarSeverity _fluentInfoSeverity = fluent.InfoBarSeverity.info;
+  Timer? _infoBarTimer;
 
   @override
   bool get wantKeepAlive => true;
@@ -27,6 +34,7 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
   @override
   void dispose() {
     _historyService.removeListener(_onHistoryChanged);
+    _infoBarTimer?.cancel();
     super.dispose();
   }
 
@@ -41,6 +49,10 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
     super.build(context);
     final colorScheme = Theme.of(context).colorScheme;
     final history = _historyService.history;
+
+    if (_themeManager.isFluentFramework) {
+      return _buildFluentPage(context, history);
+    }
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
@@ -100,6 +112,59 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
           // 底部留白
           const SliverToBoxAdapter(
             child: SizedBox(height: 16),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFluentPage(BuildContext context, List<PlayHistoryItem> history) {
+    return fluent.ScaffoldPage(
+      padding: EdgeInsets.zero,
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Row(
+              children: [
+                const Text(
+                  '播放历史',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                if (history.isNotEmpty)
+                  fluent.IconButton(
+                    icon: const Icon(fluent.FluentIcons.delete),
+                    onPressed: _showFluentClearConfirmDialog,
+                  ),
+              ],
+            ),
+          ),
+          // Removed Divider to avoid white line between header and content under acrylic/mica
+          if (_fluentInfoText != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+              child: fluent.InfoBar(
+                title: Text(_fluentInfoText!),
+                severity: _fluentInfoSeverity,
+                isLong: false,
+              ),
+            ),
+          if (history.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: _buildFluentStatisticsCard(context),
+            ),
+          Expanded(
+            child: history.isEmpty
+                ? _buildFluentEmptyState(context)
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    itemBuilder: (context, index) => _buildFluentHistoryItem(context, history[index], index),
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemCount: history.length,
+                  ),
           ),
         ],
       ),
@@ -394,6 +459,222 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
             },
             child: const Text('清空'),
           ),
+        ],
+      ),
+    );
+  }
+  
+  void _showFluentClearConfirmDialog() {
+    fluent.showDialog(
+      context: context,
+      builder: (context) => fluent.ContentDialog(
+        title: const Text('清空播放历史'),
+        content: const Text('确定要清空所有播放历史吗？此操作无法撤销。'),
+        actions: [
+          fluent.Button(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          fluent.FilledButton(
+            onPressed: () {
+              _historyService.clearHistory();
+              Navigator.pop(context);
+              _showFluentInfo('已清空播放历史');
+            },
+            child: const Text('清空'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFluentInfo(String text, [fluent.InfoBarSeverity severity = fluent.InfoBarSeverity.info]) {
+    _infoBarTimer?.cancel();
+    setState(() {
+      _fluentInfoText = text;
+      _fluentInfoSeverity = severity;
+    });
+    _infoBarTimer = Timer(const Duration(seconds: 1), () {
+      if (!mounted) return;
+      setState(() {
+        _fluentInfoText = null;
+      });
+    });
+  }
+
+  Widget _buildFluentStatisticsCard(BuildContext context) {
+    final todayCount = _historyService.getTodayPlayCount();
+    final weekCount = _historyService.getWeekPlayCount();
+    final totalCount = _historyService.history.length;
+    return fluent.Card(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(fluent.FluentIcons.bulleted_list, size: 20),
+              SizedBox(width: 8),
+              Text(
+                '播放统计',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildFluentStatItem(context, '今日', todayCount),
+              _buildFluentStatItem(context, '本周', weekCount),
+              _buildFluentStatItem(context, '总计', totalCount),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFluentStatItem(BuildContext context, String label, int count) {
+    final theme = fluent.FluentTheme.of(context);
+    return Column(
+      children: [
+        Text(
+          count.toString(),
+          style: TextStyle(
+            color: theme.accentColor,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(fontSize: 12)),
+      ],
+    );
+  }
+
+  Widget _buildFluentHistoryItem(BuildContext context, PlayHistoryItem item, int index) {
+    final theme = fluent.FluentTheme.of(context);
+    return fluent.Card(
+      padding: EdgeInsets.zero,
+      child: fluent.ListTile(
+        leading: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: CachedNetworkImage(
+                imageUrl: item.picUrl,
+                width: 50,
+                height: 50,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => Container(
+                  width: 50,
+                  height: 50,
+                  color: theme.resources.controlAltFillColorSecondary,
+                ),
+                errorWidget: (context, url, error) => Container(
+                  width: 50,
+                  height: 50,
+                  color: theme.resources.controlAltFillColorSecondary,
+                  child: Icon(
+                    fluent.FluentIcons.music_in_collection,
+                    color: theme.resources.textFillColorTertiary,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(
+                  color: theme.resources.controlFillColorTertiary,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(4),
+                  ),
+                ),
+                child: Text(
+                  '#${index + 1}',
+                  style: TextStyle(
+                    color: theme.resources.textFillColorSecondary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        title: Text(
+          item.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${item.artists} • ${item.album}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                Text(
+                  _getSourceIcon(item.source),
+                  style: const TextStyle(fontSize: 12),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _formatTime(item.playedAt),
+                  style: TextStyle(
+                    color: theme.resources.textFillColorTertiary,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            fluent.IconButton(
+              icon: const Icon(fluent.FluentIcons.play),
+              onPressed: () {
+                PlayerService().playTrack(item.toTrack());
+                _showFluentInfo('正在播放: ${item.name}');
+              },
+            ),
+            fluent.IconButton(
+              icon: const Icon(fluent.FluentIcons.delete),
+              onPressed: () {
+                _historyService.removeHistoryItem(item);
+                _showFluentInfo('已删除');
+              },
+            ),
+          ],
+        ),
+        onPressed: () {
+          PlayerService().playTrack(item.toTrack());
+          _showFluentInfo('正在播放: ${item.name}');
+        },
+      ),
+    );
+  }
+
+  Widget _buildFluentEmptyState(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: const [
+          Icon(fluent.FluentIcons.history, size: 80),
+          SizedBox(height: 16),
+          Text('暂无播放历史', style: TextStyle(fontSize: 18)),
+          SizedBox(height: 8),
+          Text('播放歌曲后会自动记录', style: TextStyle(fontSize: 12)),
         ],
       ),
     );
