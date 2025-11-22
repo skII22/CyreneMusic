@@ -23,7 +23,8 @@ sudo apt-get install -y \
   gstreamer1.0-plugins-good \
   gstreamer1.0-plugins-bad \
   gstreamer1.0-libav \
-  libayatana-appindicator3-dev
+  libayatana-appindicator3-dev \
+  libasound2-dev
 ```
 
 ## 依赖项详解
@@ -55,7 +56,13 @@ sudo apt-get install -y \
 | `gstreamer1.0-plugins-bad` | 实验性插件 | `audioplayers_linux` |
 | `gstreamer1.0-libav` | FFmpeg/Libav 支持（更多格式） | `audioplayers_linux` |
 
-### 4. 系统托盘依赖
+### 4. 音频控制依赖
+
+| 包名 | 用途 | 插件 |
+|------|------|------|
+| `libasound2-dev` | ALSA 音频库开发文件 | `volume_controller` |
+
+### 5. 系统托盘依赖
 
 | 包名 | 用途 | 插件 |
 |------|------|------|
@@ -91,7 +98,8 @@ sudo dnf install -y \
   gstreamer1-plugins-good \
   gstreamer1-plugins-bad-free \
   gstreamer1-libav \
-  libappindicator-gtk3-devel
+  libappindicator-gtk3-devel \
+  alsa-lib-devel
 ```
 
 ### Arch Linux / Manjaro
@@ -110,7 +118,8 @@ sudo pacman -S \
   gst-plugins-good \
   gst-plugins-bad \
   gst-libav \
-  libappindicator-gtk3
+  libappindicator-gtk3 \
+  alsa-lib
 ```
 
 ## 验证依赖安装
@@ -166,6 +175,18 @@ cd build/linux/x64/release/bundle
 ```
 
 ## 常见问题排查
+
+### Q: 找不到 ALSA
+
+**错误：**
+```
+CMake Error: Could NOT find ALSA (missing: ALSA_LIBRARY ALSA_INCLUDE_DIR)
+```
+
+**解决：**
+```bash
+sudo apt-get install -y libasound2-dev
+```
 
 ### Q: 找不到 GStreamer
 
@@ -263,7 +284,8 @@ RUN apt-get update && apt-get install -y \
     libgtk-3-dev liblzma-dev libstdc++-12-dev \
     libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
     gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav \
-    libayatana-appindicator3-dev
+    libayatana-appindicator3-dev \
+    libasound2-dev
 
 # 安装 Flutter
 RUN git clone https://github.com/flutter/flutter.git -b stable /flutter

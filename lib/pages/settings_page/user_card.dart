@@ -19,6 +19,9 @@ class UserCard extends StatefulWidget {
 class _UserCardState extends State<UserCard> {
   bool _isSponsor = false;
   bool _loadingSponsorStatus = false;
+  final TextEditingController _usernameController = TextEditingController();
+  bool _isUpdatingUsername = false;
+  String? _usernameError;
 
   @override
   void initState() {
@@ -493,7 +496,7 @@ class _UserCardState extends State<UserCard> {
             label: '用户名',
             child: fluent_ui.TextBox(
               controller: usernameController,
-              placeholder: '4-20位，字母数字下划线',
+              placeholder: '2-20位，支持中文、字母、数字、下划线',
               prefix: const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 8.0),
                 child: Icon(fluent_ui.FluentIcons.contact),
@@ -678,6 +681,7 @@ class _UserCardState extends State<UserCard> {
 
   @override
   void dispose() {
+    _usernameController.dispose();
     AuthService().removeListener(_onAuthChanged);
     LocationService().removeListener(_onLocationChanged);
     super.dispose();
@@ -698,6 +702,218 @@ class _UserCardState extends State<UserCard> {
       if (!mounted) return;
       setState(() {});
     });
+  }
+
+  /// 显示修改用户名对话框 - Material UI
+  Future<void> _showUpdateUsernameDialogMaterial(BuildContext context) async {
+    final currentUser = AuthService().currentUser;
+    if (currentUser == null) return;
+
+    _usernameController.text = currentUser.username;
+    _usernameError = null;
+    _isUpdatingUsername = false;
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('修改用户名'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _usernameController,
+                decoration: InputDecoration(
+                  labelText: '新用户名',
+                  hintText: '2-20位，支持中文、字母、数字、下划线',
+                  errorText: _usernameError,
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.person),
+                ),
+                enabled: !_isUpdatingUsername,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '注意：用户名支持2-20个字符，可以包含中文、字母、数字和下划线',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: _isUpdatingUsername ? null : () => Navigator.pop(dialogContext),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: _isUpdatingUsername
+                  ? null
+                  : () async {
+                      final newUsername = _usernameController.text.trim();
+                      
+                      if (newUsername.isEmpty) {
+                        setDialogState(() {
+                          _usernameError = '用户名不能为空';
+                        });
+                        return;
+                      }
+
+                      if (newUsername == currentUser.username) {
+                        setDialogState(() {
+                          _usernameError = '新用户名与当前用户名相同';
+                        });
+                        return;
+                      }
+
+                      setDialogState(() {
+                        _isUpdatingUsername = true;
+                        _usernameError = null;
+                      });
+
+                      final result = await AuthService().updateUsername(newUsername);
+
+                      if (!mounted) return;
+
+                      if (result['success'] == true) {
+                        Navigator.pop(dialogContext);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('用户名更新成功'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      } else {
+                        setDialogState(() {
+                          _isUpdatingUsername = false;
+                          _usernameError = result['message'] ?? '更新失败';
+                        });
+                      }
+                    },
+              child: _isUpdatingUsername
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('确定'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 显示修改用户名对话框 - Fluent UI
+  Future<void> _showUpdateUsernameDialogFluent(BuildContext context) async {
+    final currentUser = AuthService().currentUser;
+    if (currentUser == null) return;
+
+    _usernameController.text = currentUser.username;
+    _usernameError = null;
+    _isUpdatingUsername = false;
+
+    await fluent_ui.showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => fluent_ui.ContentDialog(
+          title: const Text('修改用户名'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              fluent_ui.InfoLabel(
+                label: '新用户名',
+                child: fluent_ui.TextBox(
+                  controller: _usernameController,
+                  placeholder: '2-20位，支持中文、字母、数字、下划线',
+                  enabled: !_isUpdatingUsername,
+                  prefix: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8.0),
+                    child: Icon(fluent_ui.FluentIcons.contact),
+                  ),
+                  prefixMode: fluent_ui.OverlayVisibilityMode.always,
+                ),
+              ),
+              if (_usernameError != null) ...[
+                const SizedBox(height: 8),
+                fluent_ui.InfoBar(
+                  title: const Text('错误'),
+                  content: Text(_usernameError!),
+                  severity: fluent_ui.InfoBarSeverity.error,
+                ),
+              ],
+              const SizedBox(height: 8),
+              Text(
+                '注意：用户名支持2-20个字符，可以包含中文、字母、数字和下划线',
+                style: fluent_ui.FluentTheme.of(context).typography.caption,
+              ),
+            ],
+          ),
+          actions: [
+            fluent_ui.Button(
+              onPressed: _isUpdatingUsername ? null : () => Navigator.pop(dialogContext),
+              child: const Text('取消'),
+            ),
+            fluent_ui.FilledButton(
+              onPressed: _isUpdatingUsername
+                  ? null
+                  : () async {
+                      final newUsername = _usernameController.text.trim();
+                      
+                      if (newUsername.isEmpty) {
+                        setDialogState(() {
+                          _usernameError = '用户名不能为空';
+                        });
+                        return;
+                      }
+
+                      if (newUsername == currentUser.username) {
+                        setDialogState(() {
+                          _usernameError = '新用户名与当前用户名相同';
+                        });
+                        return;
+                      }
+
+                      setDialogState(() {
+                        _isUpdatingUsername = true;
+                        _usernameError = null;
+                      });
+
+                      final result = await AuthService().updateUsername(newUsername);
+
+                      if (!mounted) return;
+
+                      if (result['success'] == true) {
+                        Navigator.pop(dialogContext);
+                        fluent_ui.displayInfoBar(
+                          context,
+                          builder: (context, close) => fluent_ui.InfoBar(
+                            title: const Text('成功'),
+                            content: const Text('用户名更新成功'),
+                            severity: fluent_ui.InfoBarSeverity.success,
+                          ),
+                        );
+                      } else {
+                        setDialogState(() {
+                          _isUpdatingUsername = false;
+                          _usernameError = result['message'] ?? '更新失败';
+                        });
+                      }
+                    },
+              child: _isUpdatingUsername
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: fluent_ui.ProgressRing(strokeWidth: 2),
+                    )
+                  : const Text('确定'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// 查询用户赞助状态
@@ -843,13 +1059,26 @@ class _UserCardState extends State<UserCard> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // 用户名 + 赞助角标
+                          // 用户名 + 编辑图标 + 赞助角标
                           Row(
                             children: [
                               Text(
                                 user.username,
                                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              InkWell(
+                                onTap: () => _showUpdateUsernameDialogMaterial(context),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(4.0),
+                                  child: Icon(
+                                    Icons.edit,
+                                    size: 16,
+                                    color: colorScheme.primary,
+                                  ),
                                 ),
                               ),
                               if (_isSponsor) ...[
@@ -1154,12 +1383,17 @@ class _UserCardState extends State<UserCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 用户名 + 赞助角标
+                      // 用户名 + 编辑图标 + 赞助角标
                       Row(
                         children: [
                           Text(
                             user.username,
                             style: fluent_ui.FluentTheme.of(context).typography.subtitle,
+                          ),
+                          const SizedBox(width: 4),
+                          fluent_ui.IconButton(
+                            icon: const Icon(fluent_ui.FluentIcons.edit, size: 14),
+                            onPressed: () => _showUpdateUsernameDialogFluent(context),
                           ),
                           if (_isSponsor) ...[
                             const SizedBox(width: 8),

@@ -223,13 +223,13 @@ class _RegisterPageState extends State<RegisterPage> {
                       labelText: '用户名',
                       prefixIcon: Icon(Icons.person_outline),
                       border: OutlineInputBorder(),
-                      helperText: '4-20个字符，仅字母数字下划线',
+                      helperText: '2-20个字符，支持中文、字母、数字、下划线',
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return '请输入用户名';
                       }
-                      if (!RegExp(r'^[a-zA-Z0-9_]{4,20}$').hasMatch(value)) {
+                      if (!RegExp(r'^[\u4e00-\u9fa5a-zA-Z0-9_]{2,20}$').hasMatch(value)) {
                         return '用户名格式不正确';
                       }
                       return null;

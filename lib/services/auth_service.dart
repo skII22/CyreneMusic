@@ -431,6 +431,64 @@ class AuthService extends ChangeNotifier {
     AuthOverlayService().show();
   }
 
+  /// 更新用户名
+  Future<Map<String, dynamic>> updateUsername(String newUsername) async {
+    if (_authToken == null || _authToken!.isEmpty) {
+      return {
+        'success': false,
+        'message': '未登录',
+      };
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('${UrlService().baseUrl}/auth/update-username'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_authToken',
+        },
+        body: jsonEncode({
+          'newUsername': newUsername,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        // 更新本地用户信息
+        if (_currentUser != null) {
+          _currentUser = User(
+            id: _currentUser!.id,
+            email: _currentUser!.email,
+            username: newUsername,
+            isVerified: _currentUser!.isVerified,
+            lastLogin: _currentUser!.lastLogin,
+            avatarUrl: _currentUser!.avatarUrl,
+            isSponsor: _currentUser!.isSponsor,
+            sponsorSince: _currentUser!.sponsorSince,
+          );
+          await _saveUserToStorage(_currentUser!);
+          notifyListeners();
+        }
+        
+        return {
+          'success': true,
+          'message': data['message'] ?? '用户名更新成功',
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? '更新用户名失败',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': '网络错误: ${e.toString()}',
+      };
+    }
+  }
+
   /// 更新用户IP归属地
   Future<Map<String, dynamic>> updateLocation() async {
     // 检查用户是否已登录
