@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import '../services/player_service.dart';
 import '../services/layout_preference_service.dart';
+import '../services/lyric_style_service.dart';
 import '../models/lyric_line.dart';
 import '../models/track.dart';
 import '../models/song_detail.dart';
@@ -13,6 +14,8 @@ import 'player_components/player_background.dart';
 import 'player_components/player_song_info.dart';
 import 'player_components/player_lyrics_panel.dart';
 import 'player_components/player_karaoke_lyrics_panel.dart';
+import 'player_components/player_fluid_cloud_lyrics_panel.dart';
+import 'player_components/player_fluid_cloud_layout.dart'; // 导入新布局
 import 'player_components/player_controls.dart';
 import 'player_components/player_playlist_panel.dart';
 import 'player_components/player_control_center.dart';
@@ -89,6 +92,7 @@ class _PlayerPageState extends State<PlayerPage> with WindowListener, TickerProv
   /// 设置监听器
   void _setupListeners() {
     PlayerService().addListener(_onPlayerStateChanged);
+    LyricStyleService().addListener(_onLyricStyleChanged);
     
     if (Platform.isWindows) {
       LayoutPreferenceService().addListener(_onLayoutModeChanged);
@@ -100,6 +104,7 @@ class _PlayerPageState extends State<PlayerPage> with WindowListener, TickerProv
   /// 移除监听器
   void _removeListeners() {
     PlayerService().removeListener(_onPlayerStateChanged);
+    LyricStyleService().removeListener(_onLyricStyleChanged);
     
     if (Platform.isWindows) {
       LayoutPreferenceService().removeListener(_onLayoutModeChanged);
@@ -115,6 +120,7 @@ class _PlayerPageState extends State<PlayerPage> with WindowListener, TickerProv
 
   /// 初始化数据
   void _initializeData() {
+    LyricStyleService().initialize();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final currentTrack = PlayerService().currentTrack;
       _lastTrackId = currentTrack != null 
@@ -155,6 +161,15 @@ class _PlayerPageState extends State<PlayerPage> with WindowListener, TickerProv
     if (mounted) {
       setState(() {
         print('🖥️ [PlayerPage] 布局模式已变化，刷新播放器页面');
+      });
+    }
+  }
+
+  /// 歌词样式变化回调
+  void _onLyricStyleChanged() {
+    if (mounted) {
+      setState(() {
+        print('🎤 [PlayerPage] 歌词样式已变化，刷新歌词面板');
       });
     }
   }
@@ -305,6 +320,27 @@ class _PlayerPageState extends State<PlayerPage> with WindowListener, TickerProv
     }
   }
 
+  /// 根据样式选择构建歌词面板
+  Widget _buildLyricPanel() {
+    final lyricStyle = LyricStyleService().currentStyle;
+    
+    switch (lyricStyle) {
+      case LyricStyle.defaultStyle:
+        return PlayerKaraokeLyricsPanel(
+          lyrics: _lyrics,
+          currentLyricIndex: _currentLyricIndex,
+          showTranslation: _showTranslation,
+        );
+      
+      case LyricStyle.fluidCloud:
+        return PlayerFluidCloudLyricsPanel(
+          lyrics: _lyrics,
+          currentLyricIndex: _currentLyricIndex,
+          showTranslation: _showTranslation,
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // 移动平台使用专门的移动端播放器布局
@@ -342,61 +378,73 @@ class _PlayerPageState extends State<PlayerPage> with WindowListener, TickerProv
             : BorderRadius.circular(16),
         child: Stack(
           children: [
-            // 背景层
-            const PlayerBackground(),
-            
-            // 主要内容区域
-            SafeArea(
-              child: Column(
+            // 主要内容区域 (根据样式切换)
+            if (LyricStyleService().currentStyle == LyricStyle.fluidCloud)
+              PlayerFluidCloudLayout(
+                lyrics: _lyrics,
+                currentLyricIndex: _currentLyricIndex,
+                showTranslation: _showTranslation,
+                isMaximized: _isMaximized,
+                onBackPressed: () => Navigator.pop(context),
+                onPlaylistPressed: _togglePlaylist,
+                onVolumeControlPressed: _toggleControlCenter,
+              )
+            else
+              Stack(
                 children: [
-                  // 顶部窗口控制
-                  PlayerWindowControls(
-                    isMaximized: _isMaximized,
-                    onBackPressed: () => Navigator.pop(context),
-                  ),
+                  // 背景层
+                  const PlayerBackground(),
                   
-                  // 左右分栏内容区域
-                  Expanded(
-                    child: Row(
+                  // 主要内容区域
+                  SafeArea(
+                    child: Column(
                       children: [
-                        // 左侧：歌曲信息
-                        Expanded(
-                          flex: 5,
-                          child: const PlayerSongInfo(),
+                        // 顶部窗口控制
+                        PlayerWindowControls(
+                          isMaximized: _isMaximized,
+                          onBackPressed: () => Navigator.pop(context),
                         ),
                         
-                        // 右侧：歌词（使用卡拉OK填充效果）
+                        // 左右分栏内容区域
                         Expanded(
-                          flex: 4,
-                          child: PlayerKaraokeLyricsPanel(
-                            lyrics: _lyrics,
-                            currentLyricIndex: _currentLyricIndex,
-                            showTranslation: _showTranslation,
+                          child: Row(
+                            children: [
+                              // 左侧：歌曲信息
+                              Expanded(
+                                flex: 5,
+                                child: const PlayerSongInfo(),
+                              ),
+                              
+                              // 右侧：歌词
+                              Expanded(
+                                flex: 4,
+                                child: _buildLyricPanel(),
+                              ),
+                            ],
                           ),
+                        ),
+                        
+                        // 底部控制区域
+                        AnimatedBuilder(
+                          animation: PlayerService(),
+                          builder: (context, child) {
+                            return PlayerControls(
+                              player: PlayerService(),
+                              onVolumeControlPressed: _toggleControlCenter,
+                              onPlaylistPressed: _togglePlaylist,
+                              onSleepTimerPressed: () => PlayerDialogs.showSleepTimer(context),
+                              onAddToPlaylistPressed: (track) => PlayerDialogs.showAddToPlaylist(context, track),
+                              lyrics: _lyrics,
+                              showTranslation: _showTranslation,
+                              onTranslationToggle: _toggleTranslation,
+                            );
+                          },
                         ),
                       ],
                     ),
                   ),
-                  
-                  // 底部控制区域
-                  AnimatedBuilder(
-                    animation: PlayerService(),
-                    builder: (context, child) {
-                      return PlayerControls(
-                        player: PlayerService(),
-                        onVolumeControlPressed: _toggleControlCenter,
-                        onPlaylistPressed: _togglePlaylist,
-                        onSleepTimerPressed: () => PlayerDialogs.showSleepTimer(context),
-                        onAddToPlaylistPressed: (track) => PlayerDialogs.showAddToPlaylist(context, track),
-                        lyrics: _lyrics,
-                        showTranslation: _showTranslation,
-                        onTranslationToggle: _toggleTranslation,
-                      );
-                    },
-                  ),
                 ],
               ),
-            ),
 
             // 播放列表面板（带遮罩）
             if (_showPlaylist) ...[

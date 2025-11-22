@@ -326,79 +326,81 @@ class _SearchWidgetState extends State<SearchWidget> {
       bottom: false,
       child: Stack(
         children: [
-          Column(
-            children: [
-              // 搜索栏
-              Container(
-                padding: const EdgeInsets.all(16.0),
-                decoration: BoxDecoration(
-                  color: colorScheme.surface,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      onPressed: widget.onClose,
-                      tooltip: '返回',
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        autofocus: true,
-                        decoration: InputDecoration(
-                          hintText: '搜索歌曲、歌手...',
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    _searchService.clear();
-                                    setState(() {});
-                                  },
-                                )
-                              : null,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          filled: true,
-                          fillColor: colorScheme.surfaceContainerHighest,
-                        ),
-                        textInputAction: TextInputAction.search,
-                        onSubmitted: (_) => _performSearch(),
-                        onChanged: (_) => setState(() {}),
+          Positioned.fill(
+            child: Column(
+              children: [
+                // 搜索栏
+                Container(
+                  padding: const EdgeInsets.all(16.0),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton(
-                      onPressed: _performSearch,
-                      child: const Text('搜索'),
-                    ),
-                  ],
-                ),
-              ),
-
-              // 选项卡 + 结果区域
-              Expanded(
-                child: _buildSearchTabsArea(
-                  context,
-                  searchResult,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: widget.onClose,
+                        tooltip: '返回',
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          autofocus: true,
+                          decoration: InputDecoration(
+                            hintText: '搜索歌曲、歌手...',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _searchController.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      _searchService.clear();
+                                      setState(() {});
+                                    },
+                                  )
+                                : null,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            filled: true,
+                            fillColor: colorScheme.surfaceContainerHighest,
+                          ),
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: (_) => _performSearch(),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: _performSearch,
+                        child: const Text('搜索'),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
+
+                // 选项卡 + 结果区域
+                Expanded(
+                  child: _buildSearchTabsArea(
+                    context,
+                    searchResult,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
 
           // 覆盖搜索栏的二级详情层（歌手/专辑）
@@ -425,17 +427,19 @@ class _SearchWidgetState extends State<SearchWidget> {
       bottom: false,
       child: Stack(
         children: [
-          Column(
-            children: [
-              _buildFluentSearchBar(fluentTheme),
-              Expanded(
-                child: _buildSearchTabsArea(
-                  context,
-                  searchResult,
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+          Positioned.fill(
+            child: Column(
+              children: [
+                _buildFluentSearchBar(fluentTheme),
+                Expanded(
+                  child: _buildSearchTabsArea(
+                    context,
+                    searchResult,
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           if (_secondaryArtistId != null || _secondaryAlbumId != null)
             Positioned.fill(
@@ -1097,7 +1101,7 @@ class _SearchWidgetState extends State<SearchWidget> {
   Widget _buildSearchHistory() {
     final history = _searchService.searchHistory;
     final colorScheme = Theme.of(context).colorScheme;
-    final fluentTheme = fluent.FluentTheme.of(context);
+    final fluentTheme = fluent.FluentTheme.maybeOf(context);
 
     // 如果没有历史记录，显示空状态
     if (history.isEmpty) {
@@ -1138,7 +1142,7 @@ class _SearchWidgetState extends State<SearchWidget> {
                     child: fluent.IconButton(
                       icon: Icon(
                         fluent.FluentIcons.delete,
-                        color: fluentTheme.resources?.textFillColorSecondary,
+                        color: fluentTheme?.resources?.textFillColorSecondary,
                       ),
                       onPressed: _confirmClearHistory,
                     ),

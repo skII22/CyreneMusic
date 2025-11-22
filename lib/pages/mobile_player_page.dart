@@ -13,7 +13,9 @@ import 'mobile_player_components/mobile_player_song_info.dart';
 import 'mobile_player_components/mobile_player_controls.dart';
 import 'mobile_player_components/mobile_player_control_center.dart';
 import 'mobile_player_components/mobile_player_karaoke_lyric.dart';
+import 'mobile_player_components/mobile_player_fluid_cloud_lyric.dart';
 import 'mobile_player_components/mobile_player_dialogs.dart';
+import '../../services/lyric_style_service.dart';
 
 /// 移动端播放器页面（重构版本）
 /// 适用于 Android/iOS，现在使用组件化架构
@@ -80,11 +82,17 @@ class _MobilePlayerPageState extends State<MobilePlayerPage> with TickerProvider
   /// 设置监听器
   void _setupListeners() {
     PlayerService().addListener(_onPlayerStateChanged);
+    LyricStyleService().addListener(_onLyricStyleChanged);
   }
 
   /// 移除监听器
   void _removeListeners() {
     PlayerService().removeListener(_onPlayerStateChanged);
+    LyricStyleService().removeListener(_onLyricStyleChanged);
+  }
+
+  void _onLyricStyleChanged() {
+    if (mounted) setState(() {});
   }
 
   /// 释放动画控制器
@@ -349,24 +357,24 @@ class _MobilePlayerPageState extends State<MobilePlayerPage> with TickerProvider
                             flex: 25,
                             child: Transform.translate(
                               offset: const Offset(0, -80), // 向上移动80像素（增加上移幅度）
-                          child: Align(
-                            alignment: Alignment.center,
-                            child: MobilePlayerKaraokeLyric(
-                              lyrics: _lyrics,
-                              currentLyricIndex: _currentLyricIndex,
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const MobileLyricPage(),
+                              child: Align(
+                                alignment: Alignment.center,
+                                child: MobilePlayerKaraokeLyric(
+                                  lyrics: _lyrics,
+                                  currentLyricIndex: _currentLyricIndex,
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const MobileLyricPage(),
+                                    ),
+                                  ),
+                                  showTranslation: _showTranslation && _shouldShowTranslationButton(),
                                 ),
                               ),
-                              showTranslation: _showTranslation && _shouldShowTranslationButton(),
                             ),
                           ),
-                ),
-              ),
-            ],
-          ),
+                        ],
+                      ),
                     ),
                     
                     // 底部控制区域 + 左下角译文开关
@@ -445,5 +453,4 @@ class _MobilePlayerPageState extends State<MobilePlayerPage> with TickerProvider
     
     return scaffoldWidget;
   }
-
 }

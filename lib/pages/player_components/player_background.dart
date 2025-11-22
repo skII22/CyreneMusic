@@ -148,19 +148,24 @@ class PlayerBackground extends StatelessWidget {
       valueListenable: PlayerService().themeColorNotifier,
       builder: (context, themeColor, child) {
         final color = themeColor ?? Colors.grey[700]!;
+        final topColor = color.withOpacity(0.8);
         
         return RepaintBoundary(
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 500), // 主题色变化时平滑过渡
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                // 增加插值点以消除色带效应（Banding），使渐变更加丝滑
                 colors: [
-                  color,        // 主题色（不透明）
-                  greyColor,    // 灰色（不透明）
+                  topColor,
+                  Color.lerp(topColor, greyColor, 0.25)!,
+                  Color.lerp(topColor, greyColor, 0.5)!,
+                  Color.lerp(topColor, greyColor, 0.75)!,
+                  greyColor,
                 ],
-                stops: const [0.0, 1.0],
+                stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
               ),
             ),
           ),
@@ -171,18 +176,24 @@ class PlayerBackground extends StatelessWidget {
 
   /// 构建纯色背景
   Widget _buildSolidColorBackground(PlayerBackgroundService backgroundService, Color greyColor) {
+    final topColor = backgroundService.solidColor;
+    
     return RepaintBoundary(
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 500),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            // 增加插值点以提高精度
             colors: [
-              backgroundService.solidColor,
+              topColor,
+              Color.lerp(topColor, greyColor, 0.25)!,
+              Color.lerp(topColor, greyColor, 0.5)!,
+              Color.lerp(topColor, greyColor, 0.75)!,
               greyColor,
             ],
-            stops: const [0.0, 1.0],
+            stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
           ),
         ),
       ),
@@ -241,13 +252,14 @@ class PlayerBackground extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
             colors: [
               greyColor,
+              Color.lerp(greyColor, Colors.black, 0.5)!,
               Colors.black,
             ],
-            stops: const [0.0, 1.0],
+            stops: const [0.0, 0.5, 1.0],
           ),
         ),
       ),
@@ -286,13 +298,14 @@ class PlayerBackground extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
             colors: [
               greyColor,
+              Color.lerp(greyColor, Colors.black, 0.5)!,
               Colors.black,
             ],
-            stops: const [0.0, 1.0],
+            stops: const [0.0, 0.5, 1.0],
           ),
         ),
       ),

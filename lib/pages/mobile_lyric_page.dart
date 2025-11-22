@@ -1,9 +1,11 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:ui'; // 导入 ImageFilter
 import '../services/player_service.dart';
+import '../services/lyric_style_service.dart';
 import '../models/lyric_line.dart';
 import '../utils/lyric_parser.dart';
+import 'mobile_player_components/mobile_player_fluid_cloud_lyric.dart';
 
 /// 移动端全屏滚动歌词页面
 class MobileLyricPage extends StatefulWidget {
@@ -27,6 +29,7 @@ class _MobileLyricPageState extends State<MobileLyricPage> {
     
     // 监听播放器状态
     PlayerService().addListener(_onPlayerStateChanged);
+    LyricStyleService().addListener(_onLyricStyleChanged);
     
     // 监听滚动
     _scrollController.addListener(_onScroll);
@@ -45,7 +48,12 @@ class _MobileLyricPageState extends State<MobileLyricPage> {
   void dispose() {
     _scrollController.dispose();
     PlayerService().removeListener(_onPlayerStateChanged);
+    LyricStyleService().removeListener(_onLyricStyleChanged);
     super.dispose();
+  }
+
+  void _onLyricStyleChanged() {
+    if (mounted) setState(() {});
   }
 
   /// 监听滚动
@@ -249,23 +257,41 @@ class _MobileLyricPageState extends State<MobileLyricPage> {
                             ),
                           ),
                         )
-                      : ListView.builder(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 100,
-                            horizontal: 24,
-                          ),
-                          itemCount: _lyrics.length,
-                          itemBuilder: (context, index) {
-                            return _buildLyricItem(_lyrics[index], index);
-                          },
-                        ),
+                      : _buildLyricList(),
                 ),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  /// 构建歌词列表（支持流体云切换）
+  Widget _buildLyricList() {
+    final style = LyricStyleService().currentStyle;
+    
+    // 流体云样式
+    if (style == LyricStyle.fluidCloud) {
+      return MobilePlayerFluidCloudLyric(
+        lyrics: _lyrics,
+        currentLyricIndex: _currentLyricIndex,
+        showTranslation: _showTranslation && _shouldShowTranslationButton(),
+        // 注意：全屏页可能不需要额外的点击回调，或者可以根据需求添加
+      );
+    }
+
+    // 默认滚动样式
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.symmetric(
+        vertical: 100,
+        horizontal: 24,
+      ),
+      itemCount: _lyrics.length,
+      itemBuilder: (context, index) {
+        return _buildLyricItem(_lyrics[index], index);
+      },
     );
   }
 

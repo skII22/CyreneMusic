@@ -11,6 +11,7 @@ import 'package:cyrene_music/services/cache_service.dart';
 import 'package:cyrene_music/services/developer_mode_service.dart';
 import 'package:cyrene_music/services/desktop_lyric_service.dart';
 import 'package:cyrene_music/services/listening_stats_service.dart';
+import 'package:cyrene_music/services/lyric_style_service.dart';
 import 'package:cyrene_music/services/persistent_storage_service.dart';
 import 'package:cyrene_music/services/player_background_service.dart';
 import 'package:cyrene_music/services/player_service.dart';
@@ -110,6 +111,10 @@ void main() async {
   
   await PlayerService().initialize();
   DeveloperModeService().addLog('🎵 播放器服务已初始化');
+  
+  // 初始化歌词样式服务
+  await LyricStyleService().initialize();
+  DeveloperModeService().addLog('🎤 歌词样式服务已初始化');
   
   // Android 平台特定初始化
   if (Platform.isAndroid) {
