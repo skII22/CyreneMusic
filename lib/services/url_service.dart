@@ -173,6 +173,10 @@ class UrlService extends ChangeNotifier {
   String get kugouUserPlaylistsUrl => '$baseUrl/kugou/user/playlists';
   String get kugouPlaylistTracksUrl => '$baseUrl/kugou/playlist/tracks';
 
+  // Kuwo API
+  String get kuwoSearchUrl => '$baseUrl/kuwo/search';
+  String get kuwoSongUrl => '$baseUrl/kuwo/song';
+
   // Bilibili API
   String get biliRankingUrl => '$baseUrl/bili/ranking';
   String get biliCidUrl => '$baseUrl/bili/cid';

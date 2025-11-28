@@ -99,8 +99,10 @@ class MergedTrack {
         return 1;
       case MusicSource.kugou:
         return 2;
-      case MusicSource.local:
+      case MusicSource.kuwo:
         return 3;
+      case MusicSource.local:
+        return 4;
     }
   }
 }

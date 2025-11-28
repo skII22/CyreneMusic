@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/track.dart';
 import '../models/merged_track.dart';
 import '../services/search_service.dart';
+import '../services/developer_mode_service.dart';
 import '../services/netease_artist_service.dart';
 import '../pages/artist_detail_page.dart';
 import '../pages/album_detail_page.dart';
@@ -160,6 +161,7 @@ class _SearchWidgetState extends State<SearchWidget> {
   void initState() {
     super.initState();
     _searchService.addListener(_onSearchResultChanged);
+    DeveloperModeService().addListener(_onSearchResultChanged);
 
     // 如果有初始关键词，自动填充并搜索
     if (widget.initialKeyword != null && widget.initialKeyword!.isNotEmpty) {
@@ -177,6 +179,7 @@ class _SearchWidgetState extends State<SearchWidget> {
   void dispose() {
     _searchController.dispose();
     _searchService.removeListener(_onSearchResultChanged);
+    DeveloperModeService().removeListener(_onSearchResultChanged);
     super.dispose();
   }
 
@@ -255,7 +258,11 @@ class _SearchWidgetState extends State<SearchWidget> {
     final keyword = _searchController.text.trim();
     if (keyword.isNotEmpty) {
       _searchService.search(keyword);
-      if (_currentTabIndex == 1) {
+      
+      final isMergeEnabled = DeveloperModeService().isSearchResultMergeEnabled;
+      final isArtistTab = isMergeEnabled ? _currentTabIndex == 1 : _currentTabIndex == 4;
+      
+      if (isArtistTab) {
         _searchArtists(keyword);
       }
     }
@@ -269,8 +276,11 @@ class _SearchWidgetState extends State<SearchWidget> {
   }
 
   void _handleTabChanged(int index) {
+    final isMergeEnabled = DeveloperModeService().isSearchResultMergeEnabled;
+    final isArtistTab = isMergeEnabled ? index == 1 : index == 4;
+    
     if (_currentTabIndex == index) {
-      if (index == 1) {
+      if (isArtistTab) {
         _triggerArtistSearchIfNeeded();
       }
       return;
@@ -280,7 +290,7 @@ class _SearchWidgetState extends State<SearchWidget> {
       _currentTabIndex = index;
     });
 
-    if (index == 1) {
+    if (isArtistTab) {
       _triggerArtistSearchIfNeeded();
     }
   }
@@ -593,12 +603,17 @@ class _SearchWidgetState extends State<SearchWidget> {
     SearchResult searchResult, {
     required EdgeInsetsGeometry padding,
   }) {
+    final isMergeEnabled = DeveloperModeService().isSearchResultMergeEnabled;
+    final tabs = isMergeEnabled 
+        ? ['歌曲', '歌手'] 
+        : ['网易云', 'QQ音乐', '酷狗', '酷我', '歌手'];
+
     return Column(
       children: [
         Padding(
           padding: padding,
           child: _SearchCapsuleTabs(
-            tabs: const ['歌曲', '歌手'],
+            tabs: tabs,
             currentIndex: _currentTabIndex,
             onChanged: _handleTabChanged,
           ),
@@ -628,19 +643,70 @@ class _SearchWidgetState extends State<SearchWidget> {
             materialTheme.colorScheme.surface)
         : materialTheme.colorScheme.surface;
 
-    if (_currentTabIndex == 0) {
-      return Container(
-        key: const ValueKey('songs_tab'),
-        color: backgroundColor,
-        child: _buildSongResults(searchResult),
-      );
-    }
+    final isMergeEnabled = DeveloperModeService().isSearchResultMergeEnabled;
 
-    return Container(
-      key: const ValueKey('artists_tab'),
-      color: backgroundColor,
-      child: _buildArtistResults(),
-    );
+    if (isMergeEnabled) {
+      // 合并模式：['歌曲', '歌手']
+      if (_currentTabIndex == 0) {
+        return Container(
+          key: const ValueKey('songs_tab'),
+          color: backgroundColor,
+          child: _buildSongResults(searchResult),
+        );
+      }
+      return Container(
+        key: const ValueKey('artists_tab'),
+        color: backgroundColor,
+        child: _buildArtistResults(),
+      );
+    } else {
+      // 分平台模式：['网易云', 'QQ音乐', '酷狗', '酷我', '歌手']
+      switch (_currentTabIndex) {
+        case 0:
+          return Container(
+            key: const ValueKey('netease_tab'),
+            color: backgroundColor,
+            child: _buildSinglePlatformList(
+              searchResult.neteaseResults,
+              searchResult.neteaseLoading,
+            ),
+          );
+        case 1:
+          return Container(
+            key: const ValueKey('qq_tab'),
+            color: backgroundColor,
+            child: _buildSinglePlatformList(
+              searchResult.qqResults,
+              searchResult.qqLoading,
+            ),
+          );
+        case 2:
+          return Container(
+            key: const ValueKey('kugou_tab'),
+            color: backgroundColor,
+            child: _buildSinglePlatformList(
+              searchResult.kugouResults,
+              searchResult.kugouLoading,
+            ),
+          );
+        case 3:
+          return Container(
+            key: const ValueKey('kuwo_tab'),
+            color: backgroundColor,
+            child: _buildSinglePlatformList(
+              searchResult.kuwoResults,
+              searchResult.kuwoLoading,
+            ),
+          );
+        case 4:
+        default:
+          return Container(
+            key: const ValueKey('artists_tab'),
+            color: backgroundColor,
+            child: _buildArtistResults(),
+          );
+      }
+    }
   }
 
   Widget _wrapCard({
@@ -697,6 +763,142 @@ class _SearchWidgetState extends State<SearchWidget> {
     );
   }
 
+  Widget _buildSinglePlatformList(List<Track> tracks, bool isLoading) {
+    // 如果没有搜索或搜索结果为空，显示搜索历史
+    if (_searchService.currentKeyword.isEmpty) {
+      return _buildSearchHistory();
+    }
+
+    // 如果加载完成且没有结果
+    if (!isLoading && tracks.isEmpty) {
+      return _buildEmptyState(
+        icon: Icons.music_off,
+        title: '没有找到相关歌曲',
+        subtitle: '试试其他关键词吧',
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // 搜索统计
+        _buildSearchHeader(tracks.length, _searchService.searchResult),
+
+        const SizedBox(height: 16),
+
+        // 加载提示
+        if (isLoading)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 16),
+            child: Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 12),
+                  Text('搜索中...'),
+                ],
+              ),
+            ),
+          ),
+
+        // 歌曲列表
+        ...tracks.map(
+          (track) => _buildSingleTrackItem(track),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSingleTrackItem(Track track) {
+    final placeholderColor = _isFluent
+        ? fluent.FluentTheme.of(
+                context,
+              ).resources?.controlAltFillColorSecondary ??
+              Colors.black.withOpacity(0.05)
+        : Theme.of(context).colorScheme.surfaceContainerHighest;
+
+    final leading = ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: CachedNetworkImage(
+        imageUrl: track.picUrl,
+        width: 50,
+        height: 50,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(
+          width: 50,
+          height: 50,
+          color: placeholderColor,
+          child: const Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ),
+        errorWidget: (context, url, error) => Container(
+          width: 50,
+          height: 50,
+          color: placeholderColor,
+          child: Icon(
+            Icons.music_note,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+
+    final tile = _buildAdaptiveListTile(
+      leading: leading,
+      title: Text(
+        track.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        '${track.artists} • ${track.album}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+      onPressed: () => _playSingleTrack(track),
+    );
+
+    return _wrapCard(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.zero,
+      child: tile,
+    );
+  }
+
+  void _playSingleTrack(Track track) async {
+    // 检查登录状态
+    final isLoggedIn = await _checkLoginStatus();
+    if (!isLoggedIn) return;
+
+    // 播放前注入封面 Provider，避免播放器再次请求
+    ImageProvider? provider;
+    if (track.picUrl.isNotEmpty) {
+      provider = CachedNetworkImageProvider(track.picUrl);
+      PlayerService().setCurrentCoverImageProvider(provider);
+    }
+    PlayerService().playTrack(track, coverProvider: provider);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('正在播放: ${track.name}'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
   Widget _buildSongResults(SearchResult result) {
     // 如果没有搜索或搜索结果为空，显示搜索历史
     if (_searchService.currentKeyword.isEmpty) {
@@ -705,7 +907,7 @@ class _SearchWidgetState extends State<SearchWidget> {
 
     // 显示加载状态
     final isLoading =
-        result.neteaseLoading || result.qqLoading || result.kugouLoading;
+        result.neteaseLoading || result.qqLoading || result.kugouLoading || result.kuwoLoading;
 
     // 获取合并后的结果
     final mergedResults = _searchService.getMergedResults();

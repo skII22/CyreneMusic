@@ -11,56 +11,68 @@ class SearchResult {
   final List<Track> neteaseResults;
   final List<Track> qqResults;
   final List<Track> kugouResults;
+  final List<Track> kuwoResults;
   final bool neteaseLoading;
   final bool qqLoading;
   final bool kugouLoading;
+  final bool kuwoLoading;
   final String? neteaseError;
   final String? qqError;
   final String? kugouError;
+  final String? kuwoError;
 
   SearchResult({
     this.neteaseResults = const [],
     this.qqResults = const [],
     this.kugouResults = const [],
+    this.kuwoResults = const [],
     this.neteaseLoading = false,
     this.qqLoading = false,
     this.kugouLoading = false,
+    this.kuwoLoading = false,
     this.neteaseError,
     this.qqError,
     this.kugouError,
+    this.kuwoError,
   });
 
   /// 获取所有结果的总数
-  int get totalCount => neteaseResults.length + qqResults.length + kugouResults.length;
+  int get totalCount => neteaseResults.length + qqResults.length + kugouResults.length + kuwoResults.length;
 
   /// 是否所有平台都加载完成
-  bool get allCompleted => !neteaseLoading && !qqLoading && !kugouLoading;
+  bool get allCompleted => !neteaseLoading && !qqLoading && !kugouLoading && !kuwoLoading;
 
   /// 是否有任何错误
-  bool get hasError => neteaseError != null || qqError != null || kugouError != null;
+  bool get hasError => neteaseError != null || qqError != null || kugouError != null || kuwoError != null;
 
   /// 复制并修改部分字段
   SearchResult copyWith({
     List<Track>? neteaseResults,
     List<Track>? qqResults,
     List<Track>? kugouResults,
+    List<Track>? kuwoResults,
     bool? neteaseLoading,
     bool? qqLoading,
     bool? kugouLoading,
+    bool? kuwoLoading,
     String? neteaseError,
     String? qqError,
     String? kugouError,
+    String? kuwoError,
   }) {
     return SearchResult(
       neteaseResults: neteaseResults ?? this.neteaseResults,
       qqResults: qqResults ?? this.qqResults,
       kugouResults: kugouResults ?? this.kugouResults,
+      kuwoResults: kuwoResults ?? this.kuwoResults,
       neteaseLoading: neteaseLoading ?? this.neteaseLoading,
       qqLoading: qqLoading ?? this.qqLoading,
       kugouLoading: kugouLoading ?? this.kugouLoading,
+      kuwoLoading: kuwoLoading ?? this.kuwoLoading,
       neteaseError: neteaseError,
       qqError: qqError,
       kugouError: kugouError,
+      kuwoError: kuwoError,
     );
   }
 }
@@ -86,7 +98,7 @@ class SearchService extends ChangeNotifier {
   static const String _historyKey = 'search_history';
   static const int _maxHistoryCount = 20; // 最多保存20条历史记录
 
-  /// 搜索歌曲（三个平台并行）
+  /// 搜索歌曲（四个平台并行）
   Future<void> search(String keyword) async {
     if (keyword.trim().isEmpty) {
       return;
@@ -102,16 +114,18 @@ class SearchService extends ChangeNotifier {
       neteaseLoading: true,
       qqLoading: true,
       kugouLoading: true,
+      kuwoLoading: true,
     );
     notifyListeners();
 
     print('🔍 [SearchService] 开始搜索: $keyword');
 
-    // 并行搜索三个平台
+    // 并行搜索四个平台
     await Future.wait([
       _searchNetease(keyword),
       _searchQQ(keyword),
       _searchKugou(keyword),
+      _searchKuwo(keyword),
     ]);
 
     print('✅ [SearchService] 搜索完成，共 ${_searchResult.totalCount} 条结果');
@@ -280,6 +294,60 @@ class SearchService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 搜索酷我音乐
+  Future<void> _searchKuwo(String keyword) async {
+    try {
+      print('🎸 [SearchService] 酷我音乐搜索: $keyword');
+      
+      final baseUrl = UrlService().baseUrl;
+      final url = '$baseUrl/kuwo/search?keywords=${Uri.encodeComponent(keyword)}';
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => throw Exception('请求超时'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        
+        if (data['status'] == 200) {
+          final songsData = data['data']?['songs'] as List<dynamic>? ?? [];
+          final results = songsData
+              .map((item) => Track(
+                    id: item['rid'] as int,  // 酷我使用 rid
+                    name: item['name'] as String,
+                    artists: item['artist'] as String,
+                    album: item['album'] as String? ?? '',
+                    picUrl: item['pic'] as String? ?? '',
+                    source: MusicSource.kuwo,
+                  ))
+              .toList();
+
+          _searchResult = _searchResult.copyWith(
+            kuwoResults: results,
+            kuwoLoading: false,
+          );
+          
+          print('✅ [SearchService] 酷我音乐搜索完成: ${results.length} 条结果');
+        } else {
+          throw Exception('服务器返回状态 ${data['status']}');
+        }
+      } else {
+        throw Exception('HTTP ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ [SearchService] 酷我音乐搜索失败: $e');
+      _searchResult = _searchResult.copyWith(
+        kuwoLoading: false,
+        kuwoError: e.toString(),
+      );
+    }
+    notifyListeners();
+  }
+
   /// 获取合并后的搜索结果（跨平台去重）
   List<MergedTrack> getMergedResults() {
     // 收集所有平台的歌曲
@@ -287,6 +355,7 @@ class SearchService extends ChangeNotifier {
       ...(_searchResult.neteaseResults),
       ...(_searchResult.qqResults),
       ...(_searchResult.kugouResults),
+      ...(_searchResult.kuwoResults),
     ];
 
     if (allTracks.isEmpty) {

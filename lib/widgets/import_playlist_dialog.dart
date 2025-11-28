@@ -14,7 +14,8 @@ import '../utils/theme_manager.dart';
 enum MusicPlatform {
   netease('网易云音乐', '🎵'),
   qq('QQ音乐', '🎶'),
-  kugou('酷狗音乐', '🎸');
+  kugou('酷狗音乐', '🎸'),
+  kuwo('酷我音乐', '🎤');
 
   final String name;
   final String icon;
@@ -93,6 +94,70 @@ class ImportPlaylistDialog {
     }
   }
 
+  /// 解析酷我音乐歌单URL，提取歌单ID
+  /// 支持格式：
+  /// - 纯数字ID：3567349593
+  /// - 分享链接：https://m.kuwo.cn/newh5app/playlist_detail/3567349593?t=plantform&from=ar
+  /// - PC端链接：https://www.kuwo.cn/playlist_detail/3567349593
+  static String? _parseKuwoPlaylistId(String input) {
+    final trimmedInput = input.trim();
+    
+    // 如果输入的是纯数字ID，直接返回
+    if (RegExp(r'^\d+$').hasMatch(trimmedInput)) {
+      return trimmedInput;
+    }
+    
+    // 尝试从URL中解析ID
+    try {
+      final uri = Uri.parse(trimmedInput);
+      
+      // 检查是否是酷我音乐域名
+      if (!uri.host.contains('kuwo.cn')) {
+        return null;
+      }
+      
+      String? playlistId;
+      
+      // 从路径中提取 (形如 /playlist_detail/3567349593 或 /newh5app/playlist_detail/3567349593)
+      final pathSegments = uri.pathSegments;
+      for (int i = 0; i < pathSegments.length; i++) {
+        if (pathSegments[i] == 'playlist_detail' && i + 1 < pathSegments.length) {
+          final nextSegment = pathSegments[i + 1];
+          if (RegExp(r'^\d+$').hasMatch(nextSegment)) {
+            playlistId = nextSegment;
+            break;
+          }
+        }
+      }
+      
+      // 正则表达式兜底
+      if (playlistId == null) {
+        final idMatch = RegExp(r'playlist_detail[/](\d+)').firstMatch(trimmedInput);
+        if (idMatch != null) {
+          playlistId = idMatch.group(1);
+        }
+      }
+      
+      // 验证ID是否为纯数字
+      if (playlistId != null && RegExp(r'^\d+$').hasMatch(playlistId)) {
+        return playlistId;
+      }
+      
+      return null;
+    } catch (e) {
+      // URL解析失败，尝试正则表达式兜底
+      try {
+        final idMatch = RegExp(r'playlist_detail[/](\d+)').firstMatch(trimmedInput);
+        if (idMatch != null) {
+          return idMatch.group(1);
+        }
+      } catch (_) {
+        // 忽略正则表达式错误
+      }
+      return null;
+    }
+  }
+
   /// 解析QQ音乐歌单URL，提取歌单ID (dissid)
   static String? _parseQQPlaylistId(String input) {
     final trimmedInput = input.trim();
@@ -160,6 +225,20 @@ class ImportPlaylistDialog {
     }
   }
 
+  /// 获取输入提示文本
+  static String _getInputHintText(MusicPlatform platform) {
+    switch (platform) {
+      case MusicPlatform.netease:
+        return '支持以下两种输入方式：\n• 直接输入歌单ID，如：19723756\n• 粘贴完整URL，如：https://music.163.com/#/playlist?id=19723756';
+      case MusicPlatform.qq:
+        return '支持以下两种输入方式：\n• 直接输入歌单ID，如：8522515502\n• 粘贴完整URL，如：https://y.qq.com/n/ryqq/playlist/8522515502';
+      case MusicPlatform.kuwo:
+        return '支持以下两种输入方式：\n• 直接输入歌单ID，如：3567349593\n• 粘贴分享链接，如：https://m.kuwo.cn/newh5app/playlist_detail/3567349593';
+      case MusicPlatform.kugou:
+        return '';
+    }
+  }
+
   /// 显示导入歌单对话框
   static Future<void> show(BuildContext context) async {
     final controller = TextEditingController();
@@ -201,9 +280,7 @@ class ImportPlaylistDialog {
                   const Text('输入歌单信息', style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   Text(
-                    selectedPlatform == MusicPlatform.netease
-                        ? '支持以下两种输入方式：\n• 直接输入歌单ID，如：19723756\n• 粘贴完整URL，如：https://music.163.com/#/playlist?id=19723756'
-                        : '支持以下两种输入方式：\n• 直接输入歌单ID，如：8522515502\n• 粘贴完整URL，如：https://y.qq.com/n/ryqq/playlist/8522515502',
+                    _getInputHintText(selectedPlatform),
                     style: const TextStyle(fontSize: 12),
                   ),
                   const SizedBox(height: 12),
@@ -242,8 +319,10 @@ class ImportPlaylistDialog {
                   String? playlistId;
                   if (selectedPlatform == MusicPlatform.netease) {
                     playlistId = _parseNeteasePlaylistId(input);
-                  } else {
+                  } else if (selectedPlatform == MusicPlatform.qq) {
                     playlistId = _parseQQPlaylistId(input);
+                  } else if (selectedPlatform == MusicPlatform.kuwo) {
+                    playlistId = _parseKuwoPlaylistId(input);
                   }
                   if (playlistId == null) {
                     setState(() => errorText = '无效的${selectedPlatform.name}歌单ID或URL格式');
@@ -322,9 +401,7 @@ class ImportPlaylistDialog {
                   const Text('输入歌单信息', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Text(
-                    selectedPlatform == MusicPlatform.netease
-                        ? '支持以下两种输入方式：\n• 直接输入歌单ID，如：19723756\n• 粘贴完整URL，如：https://music.163.com/#/playlist?id=19723756'
-                        : '支持以下两种输入方式：\n• 直接输入歌单ID，如：8522515502\n• 粘贴完整URL，如：https://y.qq.com/n/ryqq/playlist/8522515502',
+                    _getInputHintText(selectedPlatform),
                     style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: 16),
@@ -365,8 +442,10 @@ class ImportPlaylistDialog {
                   String? playlistId;
                   if (selectedPlatform == MusicPlatform.netease) {
                     playlistId = _parseNeteasePlaylistId(input);
-                  } else {
+                  } else if (selectedPlatform == MusicPlatform.qq) {
                     playlistId = _parseQQPlaylistId(input);
+                  } else if (selectedPlatform == MusicPlatform.kuwo) {
+                    playlistId = _parseKuwoPlaylistId(input);
                   }
                   if (playlistId == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -979,9 +1058,16 @@ class ImportPlaylistDialog {
 
     try {
       final baseUrl = UrlService().baseUrl;
-      final url = platform == MusicPlatform.netease
-          ? '$baseUrl/playlist?id=$playlistId&limit=1000'
-          : '$baseUrl/qq/playlist?id=$playlistId&limit=1000';
+      String url;
+      if (platform == MusicPlatform.netease) {
+        url = '$baseUrl/playlist?id=$playlistId&limit=1000';
+      } else if (platform == MusicPlatform.qq) {
+        url = '$baseUrl/qq/playlist?id=$playlistId&limit=1000';
+      } else if (platform == MusicPlatform.kuwo) {
+        url = '$baseUrl/kuwo/playlist?pid=$playlistId&limit=500';
+      } else {
+        throw Exception('不支持的平台');
+      }
       
       final response = await http.get(
         Uri.parse(url),
@@ -996,7 +1082,15 @@ class ImportPlaylistDialog {
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
 
-        if (data['status'] == 200 && data['success'] == true) {
+        // 酷我音乐返回格式不同
+        if (platform == MusicPlatform.kuwo) {
+          if (data['status'] == 200 && data['data'] != null) {
+            final playlist = UniversalPlaylist.fromKuwoJson(data['data']);
+            await _showSelectTargetPlaylistDialog(context, playlist);
+          } else {
+            throw Exception(data['msg'] ?? '获取歌单失败');
+          }
+        } else if (data['status'] == 200 && data['success'] == true) {
           final playlistData = data['data']['playlist'];
           final playlist = UniversalPlaylist.fromJson(playlistData, platform);
 
@@ -1297,7 +1391,9 @@ class ImportPlaylistDialog {
           ? 'netease' 
           : sourcePlaylist.platform == MusicPlatform.qq 
               ? 'qq' 
-              : 'kugou';
+              : sourcePlaylist.platform == MusicPlatform.kuwo
+                  ? 'kuwo'
+                  : 'kugou';
       final playlistId = sourcePlaylist.id.toString();
       final bound = await playlistService.updateImportConfig(
         targetPlaylist.id,
@@ -1446,7 +1542,9 @@ class UniversalPlaylist {
         ? MusicSource.netease
         : platform == MusicPlatform.qq
             ? MusicSource.qq
-            : MusicSource.kugou;
+            : platform == MusicPlatform.kuwo
+                ? MusicSource.kuwo
+                : MusicSource.kugou;
     
     final tracks = tracksJson.map((trackJson) {
       return Track(
@@ -1473,6 +1571,45 @@ class UniversalPlaylist {
       description: json['description'] as String?,
       tracks: tracks,
       platform: platform,
+    );
+  }
+
+  /// 从酷我音乐 API 返回的 JSON 创建 UniversalPlaylist
+  /// 酷我音乐返回格式：
+  /// {
+  ///   "id": 3567349593,
+  ///   "name": "dump",
+  ///   "img": "https://img1.kuwo.cn/...",
+  ///   "total": 3,
+  ///   "desc": "",
+  ///   "userName": "By苏白",
+  ///   "musicList": [...]
+  /// }
+  factory UniversalPlaylist.fromKuwoJson(Map<String, dynamic> json) {
+    final List<dynamic> musicList = json['musicList'] ?? [];
+    
+    final tracks = musicList.map((item) {
+      // 酷我音乐使用 rid 作为歌曲ID
+      final rid = item['rid'];
+      return Track(
+        id: rid is int ? rid : int.tryParse(rid.toString()) ?? 0,
+        name: (item['name'] ?? '未知歌曲') as String,
+        artists: (item['artist'] ?? '未知艺术家') as String,
+        album: (item['album'] ?? '未知专辑') as String,
+        picUrl: (item['pic'] ?? '') as String,
+        source: MusicSource.kuwo,
+      );
+    }).toList();
+
+    return UniversalPlaylist(
+      id: json['id'],
+      name: (json['name'] ?? '未命名歌单') as String,
+      coverImgUrl: (json['img'] ?? '') as String,
+      creator: (json['userName'] ?? '未知') as String,
+      trackCount: json['total'] as int? ?? tracks.length,
+      description: json['desc'] as String?,
+      tracks: tracks,
+      platform: MusicPlatform.kuwo,
     );
   }
 }

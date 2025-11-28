@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/toplist.dart';
@@ -293,6 +294,26 @@ class MusicService extends ChangeNotifier {
             },
           );
           break;
+
+        case MusicSource.kuwo:
+          // 酷我音乐 - 使用 rid 获取歌曲详情
+          url = '$baseUrl/kuwo/song?mid=$songId';
+          DeveloperModeService().addLog('🌐 [Network] GET $url');
+
+          response = await http.get(
+            Uri.parse(url),
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          ).timeout(
+            const Duration(seconds: 15),
+            onTimeout: () {
+              DeveloperModeService().addLog('⏱️ [Network] 请求超时 (15s)');
+              throw Exception('请求超时');
+            },
+          );
+          break;
+
         case MusicSource.local:
           // 本地不通过网络获取详情，直接返回 null 由 PlayerService 处理
           DeveloperModeService().addLog('ℹ️ [MusicService] 本地歌曲无需请求');
@@ -446,6 +467,50 @@ class MusicService extends ChangeNotifier {
               url: song['url'] ?? '',
               lyric: song['lyric'] ?? '',
               tlyric: '', // 酷狗音乐没有翻译歌词
+              source: source,
+            );
+          } else if (source == MusicSource.kuwo) {
+            // 酷我音乐返回格式
+            final song = data['song'] as Map<String, dynamic>?;
+            if (song == null) {
+              print('❌ [MusicService] 酷我音乐返回数据格式错误');
+              return null;
+            }
+            
+            // 调试：打印酷我音乐返回的 song 对象
+            print('🔍 [MusicService] 酷我音乐 song 对象:');
+            print('   name: ${song['name']}');
+            print('   artist: ${song['artist']}');
+            print('   album: ${song['album']}');
+            print('   pic: ${song['pic']}');
+            print('   url: ${song['url'] != null ? '已获取' : '无'}');
+            print('   duration: ${song['duration']}');
+            
+            // 获取歌词
+            final lyricText = song['lyric'] is String ? song['lyric'] as String : '';
+            
+            print('🎵 [MusicService] 酷我歌词获取结果:');
+            print('   lyricText类型: ${song['lyric'].runtimeType}');
+            print('   lyricText长度: ${lyricText.length}');
+            if (lyricText.isNotEmpty) {
+              print('   lyricText前50字符: ${lyricText.substring(0, min(50, lyricText.length))}');
+              print('   lyricText包含换行符: ${lyricText.contains('\n')}');
+            } else {
+              print('   ❌ 歌词为空！');
+              print('   完整 song 对象 keys: ${song.keys.toList()}');
+            }
+
+            songDetail = SongDetail(
+              id: songId, // 使用传入的 rid
+              name: song['name'] ?? '',
+              pic: song['pic'] ?? '',
+              arName: song['artist'] ?? '',
+              alName: song['album'] ?? '',
+              level: '未知', // 酷我音乐API未返回音质信息
+              size: song['duration']?.toString() ?? '0', // 使用 duration 字段
+              url: song['url'] ?? '',
+              lyric: lyricText,
+              tlyric: '', // 酷我音乐没有翻译歌词
               source: source,
             );
           } else {
