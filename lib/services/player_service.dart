@@ -300,7 +300,47 @@ class PlayerService extends ChangeNotifier {
           // 播放缓存文件
           await _audioPlayer.play(ap.DeviceFileSource(cachedFilePath));
           print('✅ [PlayerService] 从缓存播放: $cachedFilePath');
-          print('📝 [PlayerService] 歌词已从缓存恢复');
+          print('📝 [PlayerService] 歌词已从缓存恢复 (长度: ${_currentSong!.lyric.length})');
+          
+          // 🔍 检查：如果缓存中歌词为空，尝试后台更新
+          if (_currentSong!.lyric.isEmpty) {
+            print('⚠️ [PlayerService] 缓存歌词为空，后台尝试更新元数据...');
+            MusicService().fetchSongDetail(
+              songId: track.id, 
+              source: track.source,
+              quality: selectedQuality,
+            ).then((detail) {
+               if (detail != null && detail.lyric.isNotEmpty) {
+                  print('✅ [PlayerService] 成功获取新歌词 (${detail.lyric.length}字符)');
+                  
+                  // 更新当前歌曲对象（保留 URL 为缓存路径）
+                  _currentSong = SongDetail(
+                    id: _currentSong!.id,
+                    name: detail.name.isNotEmpty ? detail.name : _currentSong!.name,
+                    url: _currentSong!.url, // 保持缓存路径
+                    pic: detail.pic.isNotEmpty ? detail.pic : _currentSong!.pic,
+                    arName: detail.arName.isNotEmpty ? detail.arName : _currentSong!.arName,
+                    alName: detail.alName.isNotEmpty ? detail.alName : _currentSong!.alName,
+                    level: _currentSong!.level,
+                    size: _currentSong!.size,
+                    lyric: detail.lyric,
+                    tlyric: detail.tlyric,
+                    source: _currentSong!.source,
+                  );
+                  
+                  // 更新缓存
+                  CacheService().cacheSong(track, _currentSong!, qualityStr);
+                  
+                  // 刷新 UI 和歌词
+                  notifyListeners();
+                  _loadLyricsForFloatingDisplay();
+               } else {
+                 print('❌ [PlayerService] 后台更新歌词失败或仍为空');
+               }
+            }).catchError((e) {
+              print('❌ [PlayerService] 后台更新元数据失败: $e');
+            });
+          }
           
           // 提取主题色（即使是缓存播放也需要更新主题色）
           _extractThemeColorInBackground(metadata.picUrl);
@@ -350,7 +390,7 @@ class PlayerService extends ChangeNotifier {
 
       // 2. 从网络获取歌曲详情
       print('🌐 [PlayerService] 从网络获取歌曲');
-      final songDetail = await MusicService().fetchSongDetail(
+      var songDetail = await MusicService().fetchSongDetail(
         songId: track.id,
         quality: selectedQuality,
         source: track.source,
@@ -362,6 +402,25 @@ class PlayerService extends ChangeNotifier {
         print('❌ [PlayerService] 播放失败: $_errorMessage');
         notifyListeners();
         return;
+      }
+
+      // 🔧 修复：如果详情中的信息为空，使用 Track 中的信息填充
+      // 这种情况常见于酷我音乐等平台，详情接口可能缺少部分元数据
+      if (songDetail.name.isEmpty || songDetail.arName.isEmpty || songDetail.pic.isEmpty) {
+         print('⚠️ [PlayerService] 歌曲详情缺失元数据，使用 Track 信息填充');
+         songDetail = SongDetail(
+            id: songDetail.id,
+            name: songDetail.name.isNotEmpty ? songDetail.name : track.name,
+            pic: songDetail.pic.isNotEmpty ? songDetail.pic : track.picUrl,
+            arName: songDetail.arName.isNotEmpty ? songDetail.arName : track.artists,
+            alName: songDetail.alName.isNotEmpty ? songDetail.alName : track.album,
+            level: songDetail.level,
+            size: songDetail.size,
+            url: songDetail.url,
+            lyric: songDetail.lyric,
+            tlyric: songDetail.tlyric,
+            source: songDetail.source,
+         );
       }
 
       // 检查歌词是否获取成功

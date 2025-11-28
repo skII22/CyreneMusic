@@ -876,6 +876,22 @@ class _DeveloperPageState extends State<DeveloperPage> with SingleTickerProvider
           ),
         ),
         const SizedBox(height: 8),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.merge_type),
+            title: const Text('合并搜索结果'),
+            subtitle: const Text('关闭后将分平台显示搜索结果（网易云/QQ/酷狗/酷我）'),
+            trailing: Switch.adaptive(
+              value: DeveloperModeService().isSearchResultMergeEnabled,
+              onChanged: (value) {
+                setState(() {
+                  DeveloperModeService().toggleSearchResultMerge(value);
+                });
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
         FilledButton.icon(
           onPressed: () async {
             await NotificationService().showNotification(
@@ -1613,6 +1629,22 @@ class _DeveloperPageState extends State<DeveloperPage> with SingleTickerProvider
             leading: const Icon(fluent.FluentIcons.cell_phone),
             title: const Text('平台'),
             subtitle: Text(_getPlatformName()),
+          ),
+        ),
+        const SizedBox(height: 8),
+        fluent.Card(
+          child: fluent.ListTile(
+            leading: const Icon(fluent.FluentIcons.merge),
+            title: const Text('合并搜索结果'),
+            subtitle: const Text('关闭后将分平台显示搜索结果（网易云/QQ/酷狗/酷我）'),
+            trailing: fluent.ToggleSwitch(
+              checked: DeveloperModeService().isSearchResultMergeEnabled,
+              onChanged: (value) {
+                setState(() {
+                  DeveloperModeService().toggleSearchResultMerge(value);
+                });
+              },
+            ),
           ),
         ),
         const SizedBox(height: 24),

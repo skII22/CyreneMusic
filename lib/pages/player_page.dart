@@ -289,6 +289,13 @@ class _PlayerPageState extends State<PlayerPage> with WindowListener, TickerProv
               translation: song.tlyric.isNotEmpty ? song.tlyric : null,
             );
             break;
+          default:
+            // 默认使用网易云/标准 LRC 格式解析（适用于酷我等）
+            _lyrics = LyricParser.parseNeteaseLyric(
+              song.lyric,
+              translation: song.tlyric.isNotEmpty ? song.tlyric : null,
+            );
+            break;
         }
       });
 

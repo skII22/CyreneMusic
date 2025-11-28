@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui'; // 导入 dart:ui 以使用 ImageFilter
 import 'package:flutter/material.dart';
 import '../../services/player_service.dart';
 import '../../models/lyric_line.dart';
@@ -31,20 +30,18 @@ class _PlayerFluidCloudLyricsPanelState extends State<PlayerFluidCloudLyricsPane
   AnimationController? _timeCapsuleAnimationController;
   Animation<double>? _timeCapsuleFadeAnimation;
   
-  // 流体动画控制器
-  late AnimationController _fluidAnimationController;
-  late Animation<double> _fluidAnimation;
-  
   // Apple Music 风格切换动画控制器
   late AnimationController _transitionAnimationController;
   late Animation<double> _transitionAnimation;
   
-  // 滚动速度追踪
-  double _scrollVelocity = 0.0;
   int _lastLyricIndex = -1;
   
   // 记录上一个歌词索引，用于过渡动画
   int _previousLyricIndex = -1;
+  
+  // 缓存的 itemHeight，避免频繁计算
+  double _cachedItemHeight = 0;
+  double _cachedViewportHeight = 0;
 
   @override
   void initState() {
@@ -56,7 +53,6 @@ class _PlayerFluidCloudLyricsPanelState extends State<PlayerFluidCloudLyricsPane
   void dispose() {
     _autoResetTimer?.cancel();
     _timeCapsuleAnimationController?.dispose();
-    _fluidAnimationController.dispose();
     _transitionAnimationController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -77,25 +73,11 @@ class _PlayerFluidCloudLyricsPanelState extends State<PlayerFluidCloudLyricsPane
       curve: Curves.easeInOut,
     ));
     
-    // 流体动画（持续循环）- 使用更柔和的曲线
-    _fluidAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 2500),
-      vsync: this,
-    )..repeat(reverse: true);
-    
-    _fluidAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _fluidAnimationController,
-      curve: Curves.easeInOutSine, // 更柔和的正弦曲线
-    ));
-    
     // Apple Music 风格切换动画
     // 0.0 = 切换开始（旧歌词状态）
     // 1.0 = 切换完成（新歌词状态）
     _transitionAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 350), // 稍微加快过渡
       vsync: this,
     );
     
@@ -243,17 +225,19 @@ class _PlayerFluidCloudLyricsPanelState extends State<PlayerFluidCloudLyricsPane
             builder: (context, constraints) {
               // 桌面端可视行数
               const int baseVisibleLines = 7;
-              // 根据滚动速度动态调整间距（速度越快，间距稍微增大，产生拉伸效果）
-              final velocityFactor = (1.0 + (_scrollVelocity.abs() * 0.0001)).clamp(1.0, 1.15);
-              // itemHeight 不受间距动画影响，保持滚动位置稳定
-              final itemHeight = (constraints.maxHeight / baseVisibleLines) * velocityFactor;
+              // 使用固定的 itemHeight，避免滚动时布局抖动
+              final itemHeight = constraints.maxHeight / baseVisibleLines;
               final viewportHeight = constraints.maxHeight;
+              
+              // 缓存尺寸
+              _cachedItemHeight = itemHeight;
+              _cachedViewportHeight = viewportHeight;
               
               // 确保在非手动模式下滚动到正确位置
               // 使用 addPostFrameCallback 避免在 build 过程中调用 scroll
               if (!_isManualMode && _scrollController.hasClients) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (_scrollController.hasClients) {
+                  if (_scrollController.hasClients && mounted) {
                     // 由于设置了 padding 使得首行居中，所以直接滚动到 index * itemHeight 即可让对应行居中
                     final targetOffset = widget.currentLyricIndex * itemHeight;
                     
@@ -264,7 +248,7 @@ class _PlayerFluidCloudLyricsPanelState extends State<PlayerFluidCloudLyricsPane
                       // 使用平滑的缓出曲线，让滚动更丝滑
                       _scrollController.animateTo(
                         targetOffset,
-                        duration: const Duration(milliseconds: 800),
+                        duration: const Duration(milliseconds: 600), // 缩短动画时间提升响应
                         curve: Curves.easeOutCubic,
                       );
                     }
@@ -278,12 +262,6 @@ class _PlayerFluidCloudLyricsPanelState extends State<PlayerFluidCloudLyricsPane
                       notification.dragDetails != null) {
                     _startManualMode();
                   } else if (notification is ScrollUpdateNotification) {
-                    if (notification.scrollDelta != null) {
-                      setState(() {
-                        _scrollVelocity = notification.scrollDelta!;
-                      });
-                    }
-                    
                     if (_isManualMode) {
                       final centerOffset = _scrollController.offset + (viewportHeight / 2);
                       final index = (centerOffset / itemHeight).floor();
@@ -295,10 +273,6 @@ class _PlayerFluidCloudLyricsPanelState extends State<PlayerFluidCloudLyricsPane
                       }
                       _resetAutoTimer();
                     }
-                  } else if (notification is ScrollEndNotification) {
-                    setState(() {
-                      _scrollVelocity = 0.0;
-                    });
                   }
                   return false;
                 },
@@ -315,82 +289,14 @@ class _PlayerFluidCloudLyricsPanelState extends State<PlayerFluidCloudLyricsPane
                         vertical: (viewportHeight - itemHeight) / 2
                       ),
                       physics: const BouncingScrollPhysics(),
+                      // 添加 cacheExtent 预渲染更多项，减少滚动时的卡顿
+                      cacheExtent: viewportHeight,
                       itemBuilder: (context, index) {
-                        final lyric = widget.lyrics[index];
-                        final isCurrentPlaying = index == widget.currentLyricIndex;
-                        final wasPreviousPlaying = index == _previousLyricIndex;
-                        
-                        final displayIndex = _isManualMode && _selectedLyricIndex != null 
-                            ? _selectedLyricIndex! 
-                            : widget.currentLyricIndex;
-                        
-                        final distance = (index - displayIndex).abs();
-                        
-                        // Apple Music 风格视觉参数
-                        // 当前歌词：完全高亮，大字体
-                        // 其他歌词：根据距离逐渐变暗变小
-                        double opacity;
-                        double scale;
-                        double blur;
-                        
-                        if (isCurrentPlaying) {
-                          // 当前播放的歌词：从上一个状态过渡到高亮状态
-                          if (wasPreviousPlaying) {
-                            // 如果是同一行，保持高亮
-                            opacity = 1.0;
-                            scale = 1.0;
-                            blur = 0.0;
-                          } else {
-                            // 新的当前歌词：从暗淡过渡到高亮
-                            final prevDistance = (_previousLyricIndex >= 0) 
-                                ? (index - _previousLyricIndex).abs() 
-                                : 1;
-                            final startOpacity = (1.0 - (prevDistance * 0.3)).clamp(0.3, 0.7);
-                            final startScale = (1.0 - (prevDistance * 0.03)).clamp(0.94, 0.97);
-                            final startBlur = (prevDistance * 0.8).clamp(0.0, 2.0);
-                            
-                            opacity = startOpacity + (1.0 - startOpacity) * transitionProgress;
-                            scale = startScale + (1.0 - startScale) * transitionProgress;
-                            blur = startBlur * (1.0 - transitionProgress);
-                          }
-                        } else if (wasPreviousPlaying && _previousLyricIndex >= 0) {
-                          // 上一个播放的歌词：从高亮过渡到暗淡
-                          final targetOpacity = (1.0 - (distance * 0.3)).clamp(0.3, 0.7);
-                          final targetScale = (1.0 - (distance * 0.03)).clamp(0.94, 0.97);
-                          final targetBlur = (distance * 0.8).clamp(0.0, 2.0);
-                          
-                          opacity = 1.0 - (1.0 - targetOpacity) * transitionProgress;
-                          scale = 1.0 - (1.0 - targetScale) * transitionProgress;
-                          blur = targetBlur * transitionProgress;
-                        } else {
-                          // 其他歌词：保持静态的距离衰减效果
-                          opacity = (1.0 - (distance * 0.3)).clamp(0.3, 0.7);
-                          scale = (1.0 - (distance * 0.03)).clamp(0.94, 0.97);
-                          blur = (distance * 0.8).clamp(0.0, 2.0);
-                        }
-                        
-                        return Center(
-                          child: Transform.scale(
-                            scale: scale,
-                            child: Opacity(
-                              opacity: opacity,
-                              child: ImageFiltered(
-                                imageFilter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-                                child: isCurrentPlaying
-                                    ? _buildFluidCloudLyricLine(
-                                        lyric, 
-                                        themeColor, 
-                                        itemHeight, 
-                                        true
-                                      )
-                                    : _buildNormalLyricLine(
-                                        lyric, 
-                                        themeColor, 
-                                        itemHeight
-                                      ),
-                              ),
-                            ),
-                          ),
+                        return _buildLyricItem(
+                          index: index,
+                          themeColor: themeColor,
+                          itemHeight: itemHeight,
+                          transitionProgress: transitionProgress,
                         );
                       },
                     );
@@ -403,6 +309,90 @@ class _PlayerFluidCloudLyricsPanelState extends State<PlayerFluidCloudLyricsPane
       ),
     );
   }
+  
+  /// 构建单个歌词项 - 提取为独立方法便于优化
+  Widget _buildLyricItem({
+    required int index,
+    required Color? themeColor,
+    required double itemHeight,
+    required double transitionProgress,
+  }) {
+    final lyric = widget.lyrics[index];
+    final isCurrentPlaying = index == widget.currentLyricIndex;
+    final wasPreviousPlaying = index == _previousLyricIndex;
+    
+    final displayIndex = _isManualMode && _selectedLyricIndex != null 
+        ? _selectedLyricIndex! 
+        : widget.currentLyricIndex;
+    
+    final distance = (index - displayIndex).abs();
+    
+    // 只对可见范围内的歌词应用复杂效果
+    // 超出可见范围的歌词使用简化渲染
+    if (distance > 5) {
+      return RepaintBoundary(
+        child: Center(
+          child: Opacity(
+            opacity: 0.3,
+            child: _buildNormalLyricLine(lyric, themeColor, itemHeight),
+          ),
+        ),
+      );
+    }
+    
+    // Apple Music 风格视觉参数
+    double opacity;
+    double scale;
+    
+    if (isCurrentPlaying) {
+      if (wasPreviousPlaying) {
+        opacity = 1.0;
+        scale = 1.0;
+      } else {
+        final prevDistance = (_previousLyricIndex >= 0) 
+            ? (index - _previousLyricIndex).abs() 
+            : 1;
+        final startOpacity = (1.0 - (prevDistance * 0.3)).clamp(0.3, 0.7);
+        final startScale = (1.0 - (prevDistance * 0.03)).clamp(0.94, 0.97);
+        
+        opacity = startOpacity + (1.0 - startOpacity) * transitionProgress;
+        scale = startScale + (1.0 - startScale) * transitionProgress;
+      }
+    } else if (wasPreviousPlaying && _previousLyricIndex >= 0) {
+      final targetOpacity = (1.0 - (distance * 0.3)).clamp(0.3, 0.7);
+      final targetScale = (1.0 - (distance * 0.03)).clamp(0.94, 0.97);
+      
+      opacity = 1.0 - (1.0 - targetOpacity) * transitionProgress;
+      scale = 1.0 - (1.0 - targetScale) * transitionProgress;
+    } else {
+      opacity = (1.0 - (distance * 0.3)).clamp(0.3, 0.7);
+      scale = (1.0 - (distance * 0.03)).clamp(0.94, 0.97);
+    }
+    
+    // 使用 RepaintBoundary 隔离每个歌词项的重绘
+    return RepaintBoundary(
+      child: Center(
+        child: Transform.scale(
+          scale: scale,
+          child: Opacity(
+            opacity: opacity,
+            child: isCurrentPlaying
+                ? _buildFluidCloudLyricLine(
+                    lyric, 
+                    themeColor, 
+                    itemHeight, 
+                    true
+                  )
+                : _buildNormalLyricLine(
+                    lyric, 
+                    themeColor, 
+                    itemHeight
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
 
   /// 构建流体云样式的歌词行（当前歌词）
   Widget _buildFluidCloudLyricLine(
@@ -411,49 +401,44 @@ class _PlayerFluidCloudLyricsPanelState extends State<PlayerFluidCloudLyricsPane
     double itemHeight, 
     bool isActuallyPlaying
   ) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([PlayerService(), _fluidAnimation]),
-      builder: (context, child) {
-        final isSelected = _isManualMode && !isActuallyPlaying; 
-        
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center, // 居中
-            children: [
-              // 原文歌词 - 流体云效果
-              _buildFluidCloudText(
-                text: lyric.text,
-                fontSize: 20,
-                themeColor: themeColor,
-                isSelected: isSelected,
-                isPlaying: isActuallyPlaying,
-              ),
-              
-              // 翻译歌词
-              if (widget.showTranslation && 
-                  lyric.translation != null && 
-                  lyric.translation!.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    lyric.translation!,
-                    textAlign: TextAlign.center, // 居中
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: _getAdaptiveLyricColor(themeColor, false)
-                          .withOpacity(0.7),
-                      fontSize: 14,
-                      fontFamily: 'Microsoft YaHei',
-                    ),
-                  ),
-                ),
-            ],
+    final isSelected = _isManualMode && !isActuallyPlaying;
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // 原文歌词 - 简化的高亮效果
+          _buildFluidCloudText(
+            text: lyric.text,
+            fontSize: 20,
+            themeColor: themeColor,
+            isSelected: isSelected,
+            isPlaying: isActuallyPlaying,
           ),
-        );
-      },
+          
+          // 翻译歌词
+          if (widget.showTranslation && 
+              lyric.translation != null && 
+              lyric.translation!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                lyric.translation!,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: _getAdaptiveLyricColor(themeColor, false)
+                      .withOpacity(0.7),
+                  fontSize: 14,
+                  fontFamily: 'Microsoft YaHei',
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 

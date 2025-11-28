@@ -13,6 +13,9 @@ class DeveloperModeService extends ChangeNotifier {
   bool _isDeveloperMode = false;
   bool get isDeveloperMode => _isDeveloperMode;
 
+  bool _isSearchResultMergeEnabled = true;
+  bool get isSearchResultMergeEnabled => _isSearchResultMergeEnabled;
+
   int _settingsClickCount = 0;
   DateTime? _lastClickTime;
 
@@ -59,6 +62,14 @@ class DeveloperModeService extends ChangeNotifier {
     print('🔒 [DeveloperMode] 开发者模式已禁用');
   }
 
+  /// 切换搜索结果合并开关
+  void toggleSearchResultMerge(bool value) {
+    _isSearchResultMergeEnabled = value;
+    _saveDeveloperMode();
+    addLog(value ? '🔄 已启用搜索结果合并' : '🔄 已禁用搜索结果合并');
+    notifyListeners();
+  }
+
   /// 添加日志
   void addLog(String message) {
     final timestamp = DateTime.now().toString().substring(11, 19);
@@ -85,6 +96,7 @@ class DeveloperModeService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       _isDeveloperMode = prefs.getBool('developer_mode') ?? false;
+      _isSearchResultMergeEnabled = prefs.getBool('search_result_merge_enabled') ?? true;
       if (_isDeveloperMode) {
         print('🔧 [DeveloperMode] 从本地加载: 已启用');
         addLog('🔄 开发者模式状态已恢复');
@@ -100,6 +112,7 @@ class DeveloperModeService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('developer_mode', _isDeveloperMode);
+      await prefs.setBool('search_result_merge_enabled', _isSearchResultMergeEnabled);
       print('💾 [DeveloperMode] 状态已保存: $_isDeveloperMode');
     } catch (e) {
       print('❌ [DeveloperMode] 保存失败: $e');

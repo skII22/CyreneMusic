@@ -95,6 +95,12 @@ UrlService().kugouSearchUrl   // GET /kugou/search
 UrlService().kugouSongUrl     // GET /kugou/song
 ```
 
+### Kuwo (酷我)
+```dart
+UrlService().kuwoSearchUrl    // GET /kuwo/search
+UrlService().kuwoSongUrl      // GET /kuwo/song
+```
+
 ### Bilibili
 ```dart
 UrlService().biliRankingUrl       // GET /bili/ranking

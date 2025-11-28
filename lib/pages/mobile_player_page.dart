@@ -233,6 +233,13 @@ class _MobilePlayerPageState extends State<MobilePlayerPage> with TickerProvider
               translation: songDetail.tlyric.isNotEmpty ? songDetail.tlyric : null,
             );
             break;
+          default:
+            // 默认使用网易云/标准 LRC 格式解析（适用于酷我等）
+            _lyrics = LyricParser.parseNeteaseLyric(
+              songDetail.lyric,
+              translation: songDetail.tlyric.isNotEmpty ? songDetail.tlyric : null,
+            );
+            break;
         }
       });
 
