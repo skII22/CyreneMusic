@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../services/player_service.dart';
+import '../../services/lyric_font_service.dart';
 import '../../models/lyric_line.dart';
 
 /// 移动端流体云样式歌词组件
@@ -216,12 +217,14 @@ class _MobilePlayerFluidCloudLyricState extends State<MobilePlayerFluidCloudLyri
 
   /// 构建无歌词提示
   Widget _buildNoLyric() {
+    final fontFamily = LyricFontService().currentFontFamily ?? 'Microsoft YaHei';
     return Center(
       child: Text(
         '暂无歌词',
         style: TextStyle(
           color: Colors.white.withOpacity(0.5),
           fontSize: 16,
+          fontFamily: fontFamily,
         ),
       ),
     );
@@ -387,7 +390,7 @@ class _MobilePlayerFluidCloudLyricState extends State<MobilePlayerFluidCloudLyri
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.7),
                       fontSize: 13,
-                      fontFamily: 'Microsoft YaHei',
+                      fontFamily: LyricFontService().currentFontFamily ?? 'Microsoft YaHei',
                     ),
                   ),
                 ),
@@ -411,12 +414,12 @@ class _MobilePlayerFluidCloudLyricState extends State<MobilePlayerFluidCloudLyri
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
               fontSize: 18, // 普通行字体
               fontWeight: FontWeight.w600,
               height: 1.2,
-              fontFamily: 'Microsoft YaHei',
+              fontFamily: LyricFontService().currentFontFamily ?? 'Microsoft YaHei',
             ),
           ),
           if (widget.showTranslation && 
@@ -432,7 +435,7 @@ class _MobilePlayerFluidCloudLyricState extends State<MobilePlayerFluidCloudLyri
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.5),
                   fontSize: 12,
-                  fontFamily: 'Microsoft YaHei',
+                  fontFamily: LyricFontService().currentFontFamily ?? 'Microsoft YaHei',
                 ),
               ),
             ),
@@ -489,7 +492,7 @@ class _MobilePlayerFluidCloudLyricState extends State<MobilePlayerFluidCloudLyri
           color: Colors.white,
           fontSize: actualFontSize,
           fontWeight: FontWeight.w800,
-          fontFamily: 'Microsoft YaHei',
+          fontFamily: LyricFontService().currentFontFamily ?? 'Microsoft YaHei',
           height: 1.2,
           shadows: isSelected 
             ? [

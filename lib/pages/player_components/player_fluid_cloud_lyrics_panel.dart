@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import '../../services/player_service.dart';
+import '../../services/lyric_font_service.dart';
 import '../../models/lyric_line.dart';
 
 
@@ -206,6 +207,7 @@ class _PlayerFluidCloudLyricsPanelState extends State<PlayerFluidCloudLyricsPane
 
   /// 构建无歌词提示
   Widget _buildNoLyric() {
+    final fontFamily = LyricFontService().currentFontFamily ?? 'Microsoft YaHei';
     return Center(
       child: Text(
         '纯音乐 / 暂无歌词',
@@ -213,7 +215,7 @@ class _PlayerFluidCloudLyricsPanelState extends State<PlayerFluidCloudLyricsPane
           color: Colors.white.withOpacity(0.4),
           fontSize: 42,
           fontWeight: FontWeight.w800,
-          fontFamily: 'Microsoft YaHei',
+          fontFamily: fontFamily,
         ),
       ),
     );
@@ -365,7 +367,7 @@ class _PlayerFluidCloudLyricsPanelState extends State<PlayerFluidCloudLyricsPane
                                 : (isActive ? Colors.white : Colors.white.withOpacity(0.45)),
                             fontSize: isActive ? 32 : 26,
                             fontWeight: FontWeight.w900,
-                            fontFamily: 'Microsoft YaHei',
+                            fontFamily: LyricFontService().currentFontFamily ?? 'Microsoft YaHei',
                             height: 1.25,
                             letterSpacing: -0.5,
                             shadows: isActive ? [
@@ -414,7 +416,7 @@ class _PlayerFluidCloudLyricsPanelState extends State<PlayerFluidCloudLyricsPane
                                       : Colors.white.withOpacity(0.6),
                                   fontSize: 18,
                                   fontWeight: FontWeight.w600,
-                                  fontFamily: 'Microsoft YaHei',
+                                  fontFamily: LyricFontService().currentFontFamily ?? 'Microsoft YaHei',
                                   height: 1.3,
                                 ),
                                 child: Text(

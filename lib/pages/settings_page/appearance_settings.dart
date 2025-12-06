@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent_ui;
 import '../../utils/theme_manager.dart';
 import '../../services/player_background_service.dart';
@@ -14,12 +15,84 @@ class AppearanceSettings extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isFluentUI = Platform.isWindows && ThemeManager().isFluentFramework;
+    final isCupertinoUI = (Platform.isIOS || Platform.isAndroid) && ThemeManager().isCupertinoFramework;
     
     if (isFluentUI) {
       return _buildFluentUI(context);
     }
     
+    if (isCupertinoUI) {
+      return _buildCupertinoUI(context);
+    }
+    
     return _buildMaterialUI(context);
+  }
+  
+  /// 构建 Cupertino UI 版本 - 入口卡片
+  Widget _buildCupertinoUI(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Cupertino 模式下使用 iOS 蓝色
+    const iconColor = ThemeManager.iosBlue;
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1C1C1E) : CupertinoColors.white,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 29,
+                height: 29,
+                decoration: BoxDecoration(
+                  color: iconColor,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Icon(
+                  CupertinoIcons.paintbrush_fill,
+                  color: CupertinoColors.white,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '外观设置',
+                      style: TextStyle(
+                        fontSize: 17,
+                        color: isDark ? CupertinoColors.white : CupertinoColors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _getSubtitle(),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: CupertinoColors.systemGrey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                CupertinoIcons.chevron_forward,
+                color: CupertinoColors.systemGrey,
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   /// 构建 Material UI 版本 - 入口卡片

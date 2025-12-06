@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent_ui;
 import '../../utils/theme_manager.dart';
 import '../../services/desktop_lyric_service.dart';
 import '../../services/android_floating_lyric_service.dart';
 import '../../widgets/fluent_settings_card.dart';
+import '../../widgets/cupertino/cupertino_settings_widgets.dart';
 
 /// 歌词设置入口组件（显示在主设置页面）
 class LyricSettings extends StatelessWidget {
@@ -23,6 +25,10 @@ class LyricSettings extends StatelessWidget {
     
     if (isFluentUI) {
       return _buildFluentUI(context);
+    }
+    
+    if (ThemeManager().isCupertinoFramework) {
+      return _buildCupertinoUI(context);
     }
     
     return _buildMaterialUI(context);
@@ -66,6 +72,23 @@ class LyricSettings extends StatelessWidget {
           title: _getTitle(),
           subtitle: _getSubtitle(),
           trailing: const Icon(fluent_ui.FluentIcons.chevron_right, size: 12),
+          onTap: onTap,
+        ),
+      ],
+    );
+  }
+
+  /// 构建 Cupertino UI 版本 - 入口卡片
+  Widget _buildCupertinoUI(BuildContext context) {
+    return CupertinoSettingsSection(
+      header: '歌词',
+      children: [
+        CupertinoSettingsTile(
+          icon: CupertinoIcons.music_note_2,
+          iconColor: CupertinoColors.systemPink,
+          title: _getTitle(),
+          subtitle: _getSubtitle(),
+          showChevron: true,
           onTap: onTap,
         ),
       ],

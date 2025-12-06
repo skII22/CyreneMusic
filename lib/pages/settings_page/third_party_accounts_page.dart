@@ -1,9 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent_ui;
 import '../../widgets/fluent_settings_card.dart';
+import '../../widgets/cupertino/cupertino_settings_widgets.dart';
 import '../../services/auth_service.dart';
 import '../../services/netease_login_service.dart';
 import '../../services/kugou_login_service.dart';
+import '../../utils/theme_manager.dart';
 import 'netease_qr_dialog.dart';
 import 'kugou_qr_dialog.dart';
 
@@ -21,22 +25,44 @@ class ThirdPartyAccountsContent extends StatefulWidget {
   @override
   State<ThirdPartyAccountsContent> createState() => _ThirdPartyAccountsContentState();
   
-  /// 构建 Fluent UI 面包屑导航
+  /// 构建 Fluent UI 面包屑导航（Windows 11 24H2 风格）
   Widget buildFluentBreadcrumb(BuildContext context) {
+    final theme = fluent_ui.FluentTheme.of(context);
+    final typography = theme.typography;
+    
+    // Windows 11 设置页面的面包屑样式：
+    // - 无返回按钮
+    // - 父级页面文字颜色较浅，可点击
+    // - 当前页面文字颜色正常
+    // - 字体大小与 PageHeader 的 title 一致（使用 typography.title）
     return Row(
       children: [
-        fluent_ui.Button(
-          style: fluent_ui.ButtonStyle(
-            padding: fluent_ui.WidgetStateProperty.all(EdgeInsets.zero),
+        // 父级：设置（颜色较浅，可点击）
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: onBack,
+            child: Text(
+              '设置',
+              style: typography.title?.copyWith(
+                color: theme.resources.textFillColorSecondary,
+              ),
+            ),
           ),
-          onPressed: onBack,
-          child: const Text('设置'),
         ),
-        const fluent_ui.Padding(
-          padding: EdgeInsets.symmetric(horizontal: 8),
-          child: Icon(fluent_ui.FluentIcons.chevron_right, size: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Icon(
+            fluent_ui.FluentIcons.chevron_right,
+            size: 14,
+            color: theme.resources.textFillColorSecondary,
+          ),
         ),
-        const Text('第三方账号'),
+        // 当前页面：第三方账号（正常颜色）
+        Text(
+          '第三方账号',
+          style: typography.title,
+        ),
       ],
     );
   }
@@ -77,12 +103,16 @@ class _ThirdPartyAccountsContentState extends State<ThirdPartyAccountsContent> {
   Widget build(BuildContext context) {
     final user = AuthService().currentUser;
     final isFluent = fluent_ui.FluentTheme.maybeOf(context) != null;
+    final isCupertino = (Platform.isIOS || Platform.isAndroid) && ThemeManager().isCupertinoFramework;
     
     // 如果未登录，显示提示信息
     if (user == null) {
-      return _buildNotLoggedIn(context, isFluent);
+      return _buildNotLoggedIn(context, isFluent, isCupertino);
     }
 
+    if (isCupertino) {
+      return _buildCupertinoContent(context, user);
+    }
     if (isFluent) {
       return _buildFluentContent(context, user);
     }
@@ -90,7 +120,51 @@ class _ThirdPartyAccountsContentState extends State<ThirdPartyAccountsContent> {
   }
 
   /// 构建未登录提示
-  Widget _buildNotLoggedIn(BuildContext context, bool isFluent) {
+  Widget _buildNotLoggedIn(BuildContext context, bool isFluent, bool isCupertino) {
+    if (isCupertino) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      return CupertinoScrollbar(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1C1C1E) : CupertinoColors.white,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    CupertinoIcons.person_circle,
+                    size: 64,
+                    color: CupertinoColors.systemGrey,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '未登录',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '请先登录 Cyrene Music 账号后再管理第三方账号',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: CupertinoColors.systemGrey,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
     if (isFluent) {
       return fluent_ui.ListView(
         padding: const EdgeInsets.all(24),
@@ -181,6 +255,337 @@ class _ThirdPartyAccountsContentState extends State<ThirdPartyAccountsContent> {
         const SizedBox(height: 8),
         _buildKugouCard(context, user),
       ],
+    );
+  }
+
+  /// 构建 Cupertino UI 内容
+  Widget _buildCupertinoContent(BuildContext context, dynamic user) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? CupertinoColors.black : CupertinoColors.systemGroupedBackground;
+    
+    return Container(
+      color: backgroundColor,
+      child: CupertinoScrollbar(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // 提示信息
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: ThemeManager.iosBlue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    CupertinoIcons.info_circle_fill,
+                    color: ThemeManager.iosBlue,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      '绑定第三方账号后，我们可以为您定制首页推荐内容',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isDark ? CupertinoColors.white : CupertinoColors.black,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            // 网易云音乐
+            CupertinoSettingsSection(
+              header: '网易云音乐',
+              children: [
+                _buildCupertinoNeteaseCard(context, user),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // 酷狗音乐
+            CupertinoSettingsSection(
+              header: '酷狗音乐',
+              children: [
+                _buildCupertinoKugouCard(context, user),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 构建网易云音乐卡片 (Cupertino)
+  Widget _buildCupertinoNeteaseCard(BuildContext context, dynamic user) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return FutureBuilder<Map<String, dynamic>>(
+      key: ValueKey(_refreshKey),
+      future: NeteaseLoginService().fetchBindings(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemRed,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(CupertinoIcons.cloud_fill, color: CupertinoColors.white, size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('网易云音乐', style: TextStyle(fontSize: 16)),
+                      Text('加载中...', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+                    ],
+                  ),
+                ),
+                const CupertinoActivityIndicator(),
+              ],
+            ),
+          );
+        }
+
+        final bindings = snapshot.data?['data'] as Map<String, dynamic>?;
+        final netease = bindings?['netease'] as Map<String, dynamic>?;
+        final bound = (netease != null) && (netease['bound'] == true);
+        final nickname = netease?['nickname'] as String?;
+        final avatarUrl = netease?['avatarUrl'] as String?;
+        final neteaseUserId = netease?['userId'] as String?;
+
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  image: avatarUrl != null
+                      ? DecorationImage(image: NetworkImage(avatarUrl), fit: BoxFit.cover)
+                      : null,
+                  color: avatarUrl == null ? CupertinoColors.systemRed : null,
+                ),
+                child: avatarUrl == null
+                    ? const Icon(CupertinoIcons.cloud_fill, color: CupertinoColors.white, size: 20)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '网易云音乐',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: isDark ? CupertinoColors.white : CupertinoColors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    if (bound) ...[
+                      Text(
+                        '昵称: ${nickname ?? '-'}',
+                        style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey),
+                      ),
+                      Text(
+                        'ID: ${neteaseUserId ?? '-'}',
+                        style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey),
+                      ),
+                    ] else
+                      Text(
+                        '未绑定',
+                        style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey),
+                      ),
+                  ],
+                ),
+              ),
+              CupertinoButton(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                color: bound ? CupertinoColors.systemGrey4 : ThemeManager.iosBlue,
+                minSize: 0,
+                onPressed: bound
+                    ? () => _showUnbindDialogCupertino(context, '网易云音乐', () async {
+                        return await NeteaseLoginService().unbindNetease();
+                      })
+                    : () => _bindNetease(context, user.id),
+                child: Text(
+                  bound ? '解绑' : '去绑定',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: bound
+                        ? (isDark ? CupertinoColors.white : CupertinoColors.black)
+                        : CupertinoColors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// 构建酷狗音乐卡片 (Cupertino)
+  Widget _buildCupertinoKugouCard(BuildContext context, dynamic user) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return FutureBuilder<Map<String, dynamic>>(
+      key: ValueKey(_refreshKey),
+      future: KugouLoginService().fetchBindings(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemBlue,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(CupertinoIcons.music_note, color: CupertinoColors.white, size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('酷狗音乐', style: TextStyle(fontSize: 16)),
+                      Text('加载中...', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+                    ],
+                  ),
+                ),
+                const CupertinoActivityIndicator(),
+              ],
+            ),
+          );
+        }
+
+        final bindings = snapshot.data?['data'] as Map<String, dynamic>?;
+        final kugou = bindings?['kugou'] as Map<String, dynamic>?;
+        final bound = (kugou != null) && (kugou['bound'] == true);
+        final username = kugou?['username'] as String?;
+        final avatar = kugou?['avatar'] as String?;
+        final kugouUserId = kugou?['userId'] as String?;
+
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  image: avatar != null
+                      ? DecorationImage(image: NetworkImage(avatar), fit: BoxFit.cover)
+                      : null,
+                  color: avatar == null ? CupertinoColors.systemBlue : null,
+                ),
+                child: avatar == null
+                    ? const Icon(CupertinoIcons.music_note, color: CupertinoColors.white, size: 20)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '酷狗音乐',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: isDark ? CupertinoColors.white : CupertinoColors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    if (bound) ...[
+                      Text(
+                        '昵称: ${username ?? '-'}',
+                        style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey),
+                      ),
+                      Text(
+                        'ID: ${kugouUserId ?? '-'}',
+                        style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey),
+                      ),
+                    ] else
+                      Text(
+                        '未绑定',
+                        style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey),
+                      ),
+                  ],
+                ),
+              ),
+              CupertinoButton(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                color: bound ? CupertinoColors.systemGrey4 : ThemeManager.iosBlue,
+                minSize: 0,
+                onPressed: bound
+                    ? () => _showUnbindDialogCupertino(context, '酷狗音乐', () async {
+                        return await KugouLoginService().unbindKugou();
+                      })
+                    : () => _bindKugou(context, user.id),
+                child: Text(
+                  bound ? '解绑' : '去绑定',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: bound
+                        ? (isDark ? CupertinoColors.white : CupertinoColors.black)
+                        : CupertinoColors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// 显示 Cupertino 风格解绑对话框
+  void _showUnbindDialogCupertino(BuildContext context, String serviceName, Future<bool> Function() unbindAction) {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: Text('解绑$serviceName账号'),
+        content: const Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: Text('解绑后将无法为您定制首页推荐内容，确定要解绑吗？'),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () async {
+              Navigator.pop(context);
+              final ok = await unbindAction();
+              if (ok) {
+                _refresh();
+              }
+            },
+            child: const Text('解绑'),
+          ),
+        ],
+      ),
     );
   }
 

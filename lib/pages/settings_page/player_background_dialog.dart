@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent_ui;
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:file_picker/file_picker.dart';
@@ -24,10 +25,15 @@ class _PlayerBackgroundDialogState extends State<PlayerBackgroundDialog> {
     final backgroundService = PlayerBackgroundService();
     final currentType = backgroundService.backgroundType;
     final isFluent = Platform.isWindows && ThemeManager().isFluentFramework;
+    final isCupertino = (Platform.isIOS || Platform.isAndroid) && ThemeManager().isCupertinoFramework;
     
     // 检查用户是否为赞助用户
     final authService = AuthService();
     final isSponsor = authService.currentUser?.isSponsor ?? false;
+
+    if (isCupertino) {
+      return _buildCupertinoDialog(context, backgroundService, currentType, isSponsor);
+    }
 
     if (isFluent) {
       return fluent_ui.ContentDialog(
@@ -810,6 +816,344 @@ class _PlayerBackgroundDialogState extends State<PlayerBackgroundDialog> {
   /// 选择背景图片（兼容旧代码）
   Future<void> _selectBackgroundImage() async {
     await _selectBackgroundMedia();
+  }
+
+  /// 构建 Cupertino 风格对话框
+  Widget _buildCupertinoDialog(
+    BuildContext context,
+    PlayerBackgroundService backgroundService,
+    PlayerBackgroundType currentType,
+    bool isSponsor,
+  ) {
+    return CupertinoAlertDialog(
+      title: const Text('播放器背景设置'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            // 自适应背景
+            _buildCupertinoRadioOption(
+              title: '自适应背景',
+              subtitle: '基于专辑封面提取颜色',
+              isSelected: currentType == PlayerBackgroundType.adaptive,
+              onTap: () async {
+                await backgroundService.setBackgroundType(PlayerBackgroundType.adaptive);
+                setState(() {});
+                widget.onChanged();
+              },
+            ),
+            
+            // 渐变开关（仅在自适应背景时显示）
+            if (currentType == PlayerBackgroundType.adaptive && 
+                LyricStyleService().currentStyle != LyricStyle.fluidCloud)
+              Padding(
+                padding: const EdgeInsets.only(left: 24, top: 8),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text('封面渐变效果', style: TextStyle(fontSize: 13)),
+                    ),
+                    CupertinoSwitch(
+                      value: backgroundService.enableGradient,
+                      onChanged: (value) async {
+                        await backgroundService.setEnableGradient(value);
+                        setState(() {});
+                        widget.onChanged();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            
+            const SizedBox(height: 8),
+            
+            // 纯色背景
+            _buildCupertinoRadioOption(
+              title: '纯色背景',
+              subtitle: '使用自定义纯色',
+              isSelected: currentType == PlayerBackgroundType.solidColor,
+              onTap: () async {
+                await backgroundService.setBackgroundType(PlayerBackgroundType.solidColor);
+                setState(() {});
+                widget.onChanged();
+              },
+            ),
+            
+            // 颜色选择按钮
+            if (currentType == PlayerBackgroundType.solidColor)
+              Padding(
+                padding: const EdgeInsets.only(left: 24, top: 8),
+                child: CupertinoButton(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  color: ThemeManager.iosBlue,
+                  minSize: 0,
+                  onPressed: () => _showCupertinSolidColorPicker(backgroundService),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 16,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: backgroundService.solidColor,
+                          borderRadius: BorderRadius.circular(3),
+                          border: Border.all(color: CupertinoColors.white, width: 1),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text('选择颜色', style: TextStyle(fontSize: 13, color: CupertinoColors.white)),
+                    ],
+                  ),
+                ),
+              ),
+            
+            const SizedBox(height: 8),
+            
+            // 图片背景
+            _buildCupertinoRadioOption(
+              title: '图片背景${!isSponsor ? ' 🎁' : ''}',
+              subtitle: isSponsor
+                  ? (backgroundService.mediaPath != null && backgroundService.isImage
+                      ? '已设置自定义图片'
+                      : '未设置图片')
+                  : '赞助用户独享功能',
+              isSelected: currentType == PlayerBackgroundType.image,
+              enabled: isSponsor,
+              onTap: isSponsor
+                  ? () async {
+                      await backgroundService.setBackgroundType(PlayerBackgroundType.image);
+                      setState(() {});
+                      widget.onChanged();
+                    }
+                  : null,
+            ),
+            
+            const SizedBox(height: 8),
+            
+            // 视频背景
+            _buildCupertinoRadioOption(
+              title: '视频背景${!isSponsor ? ' 🎁' : ''}',
+              subtitle: isSponsor
+                  ? (backgroundService.mediaPath != null && backgroundService.isVideo
+                      ? '已设置自定义视频'
+                      : '未设置视频')
+                  : '赞助用户独享功能',
+              isSelected: currentType == PlayerBackgroundType.video,
+              enabled: isSponsor,
+              onTap: isSponsor
+                  ? () async {
+                      await backgroundService.setBackgroundType(PlayerBackgroundType.video);
+                      setState(() {});
+                      widget.onChanged();
+                    }
+                  : null,
+            ),
+            
+            // 媒体选择和模糊设置
+            if (currentType == PlayerBackgroundType.image || currentType == PlayerBackgroundType.video) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: CupertinoButton(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      color: ThemeManager.iosBlue,
+                      minSize: 0,
+                      onPressed: _selectBackgroundMedia,
+                      child: Text(
+                        currentType == PlayerBackgroundType.image ? '选择图片' : '选择视频',
+                        style: const TextStyle(fontSize: 14, color: CupertinoColors.white),
+                      ),
+                    ),
+                  ),
+                  if (backgroundService.mediaPath != null) ...[
+                    const SizedBox(width: 8),
+                    CupertinoButton(
+                      padding: const EdgeInsets.all(8),
+                      color: CupertinoColors.systemRed,
+                      minSize: 0,
+                      onPressed: () async {
+                        await backgroundService.clearMediaBackground();
+                        setState(() {});
+                        widget.onChanged();
+                      },
+                      child: const Icon(CupertinoIcons.delete, color: CupertinoColors.white, size: 18),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Text(
+                    '模糊: ${backgroundService.blurAmount.toStringAsFixed(0)}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  Expanded(
+                    child: CupertinoSlider(
+                      value: backgroundService.blurAmount,
+                      min: 0,
+                      max: 50,
+                      onChanged: (value) async {
+                        await backgroundService.setBlurAmount(value);
+                        setState(() {});
+                        widget.onChanged();
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            
+            // 动态背景（仅在流体云样式下显示）
+            if (LyricStyleService().currentStyle == LyricStyle.fluidCloud) ...[
+              const SizedBox(height: 12),
+              Text(
+                '流体云专属',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: ThemeManager.iosBlue,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildCupertinoRadioOption(
+                title: '动态背景',
+                subtitle: '生成流动的渐变动画',
+                isSelected: currentType == PlayerBackgroundType.dynamic,
+                onTap: () async {
+                  await backgroundService.setBackgroundType(PlayerBackgroundType.dynamic);
+                  setState(() {});
+                  widget.onChanged();
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        CupertinoDialogAction(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('关闭'),
+        ),
+      ],
+    );
+  }
+  
+  /// 构建 Cupertino 单选项
+  Widget _buildCupertinoRadioOption({
+    required String title,
+    required String subtitle,
+    required bool isSelected,
+    bool enabled = true,
+    VoidCallback? onTap,
+  }) {
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.5,
+      child: GestureDetector(
+        onTap: enabled ? onTap : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              Icon(
+                isSelected ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
+                color: isSelected ? ThemeManager.iosBlue : CupertinoColors.systemGrey,
+                size: 22,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(fontSize: 15),
+                    ),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: CupertinoColors.systemGrey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 显示 Cupertino 风格纯色选择器
+  Future<void> _showCupertinSolidColorPicker(PlayerBackgroundService backgroundService) async {
+    final presetColors = [
+      Colors.grey[900]!,
+      Colors.black,
+      Colors.blue[900]!,
+      Colors.purple[900]!,
+      Colors.red[900]!,
+      Colors.green[900]!,
+      Colors.orange[900]!,
+      Colors.teal[900]!,
+    ];
+    
+    await showCupertinoDialog<void>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('选择纯色'),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 16),
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            alignment: WrapAlignment.center,
+            children: presetColors.map((color) {
+              final isSelected = backgroundService.solidColor.value == color.value;
+              
+              return GestureDetector(
+                onTap: () async {
+                  await backgroundService.setSolidColor(color);
+                  setState(() {});
+                  widget.onChanged();
+                  Navigator.pop(context);
+                },
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(8),
+                    border: isSelected 
+                        ? Border.all(color: ThemeManager.iosBlue, width: 3)
+                        : null,
+                  ),
+                  child: isSelected 
+                      ? const Icon(CupertinoIcons.checkmark, color: CupertinoColors.white, size: 20)
+                      : null,
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _showCustomColorPicker();
+            },
+            child: const Text('自定义颜色'),
+          ),
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
   }
 }
 

@@ -19,6 +19,9 @@ class DesktopLyricService {
   
   // Playback control callback
   Function(String action)? _playbackControlCallback;
+  
+  // Color picker callback (for showing color picker dialog from Flutter)
+  Function()? _colorPickerCallback;
 
   // 配置项的SharedPreferences键
   static const String _keyEnabled = 'desktop_lyric_enabled';
@@ -30,10 +33,12 @@ class DesktopLyricService {
   static const String _keyPositionY = 'desktop_lyric_position_y';
   static const String _keyDraggable = 'desktop_lyric_draggable';
   static const String _keyMouseTransparent = 'desktop_lyric_mouse_transparent';
+  static const String _keyShowTranslation = 'desktop_lyric_show_translation';
 
   bool _isCreated = false;
   bool _isVisible = false;
   String _currentLyric = '';
+  String _currentTranslation = '';
 
   // 默认配置
   int _fontSize = 32;
@@ -42,6 +47,7 @@ class DesktopLyricService {
   int _strokeWidth = 2;
   bool _isDraggable = true;
   bool _isMouseTransparent = false;
+  bool _showTranslation = true;
 
   /// 初始化服务（加载配置）
   Future<void> initialize() async {
@@ -60,6 +66,7 @@ class DesktopLyricService {
       _strokeWidth = prefs.getInt(_keyStrokeWidth) ?? 2;
       _isDraggable = prefs.getBool(_keyDraggable) ?? true;
       _isMouseTransparent = prefs.getBool(_keyMouseTransparent) ?? false;
+      _showTranslation = prefs.getBool(_keyShowTranslation) ?? true;
 
       // 延迟创建窗口，确保不阻塞主窗口启动
       Future.delayed(Duration(milliseconds: 500), () async {
@@ -74,6 +81,7 @@ class DesktopLyricService {
           await setStrokeWidth(_strokeWidth, saveToPrefs: false);
           await setDraggable(_isDraggable, saveToPrefs: false);
           await setMouseTransparent(_isMouseTransparent, saveToPrefs: false);
+          await setShowTranslation(_showTranslation, saveToPrefs: false);
 
           // 恢复位置
           final x = prefs.getInt(_keyPositionX);
@@ -162,18 +170,33 @@ class DesktopLyricService {
   }
 
   /// 设置歌词文本
-  Future<void> setLyricText(String text) async {
+  Future<void> setLyricText(String text, {int? durationMs}) async {
     if (!Platform.isWindows) return;
     
     _currentLyric = text;
     
-    // 如果窗口未创建，只保存文本，不实际设置
+    // 如果窗口未创建，只保存歌词，不实际设置
     if (!_isCreated) return;
 
     try {
+      // 先设置歌词持续时间（用于计算滚动速度）
+      if (durationMs != null && durationMs > 0) {
+        await _channel.invokeMethod('setLyricDuration', {'duration': durationMs});
+      }
       await _channel.invokeMethod('setLyricText', {'text': text});
     } catch (e) {
       print('❌ [DesktopLyric] 设置歌词失败: $e');
+    }
+  }
+  
+  /// 设置歌词持续时间（用于计算滚动速度）
+  Future<void> setLyricDuration(int durationMs) async {
+    if (!Platform.isWindows || !_isCreated) return;
+    
+    try {
+      await _channel.invokeMethod('setLyricDuration', {'duration': durationMs});
+    } catch (e) {
+      print('❌ [DesktopLyric] 设置歌词持续时间失败: $e');
     }
   }
   
@@ -361,11 +384,91 @@ class DesktopLyricService {
     'strokeWidth': _strokeWidth,
     'isDraggable': _isDraggable,
     'isMouseTransparent': _isMouseTransparent,
+    'showTranslation': _showTranslation,
   };
+
+  /// 获取字体大小
+  int get fontSize => _fontSize;
+
+  /// 获取文字颜色
+  int get textColor => _textColor;
+
+  /// 获取描边颜色
+  int get strokeColor => _strokeColor;
+
+  /// 获取是否显示翻译
+  bool get showTranslation => _showTranslation;
+
+  /// 设置翻译文本
+  Future<void> setTranslationText(String text) async {
+    if (!Platform.isWindows) return;
+    
+    _currentTranslation = text;
+    
+    // 如果窗口未创建，只保存文本，不实际设置
+    if (!_isCreated) return;
+
+    try {
+      await _channel.invokeMethod('setTranslationText', {'text': text});
+    } catch (e) {
+      print('❌ [DesktopLyric] 设置翻译失败: $e');
+    }
+  }
+
+  /// 设置是否显示翻译
+  Future<void> setShowTranslation(bool show, {bool saveToPrefs = true}) async {
+    if (!Platform.isWindows || !_isCreated) return;
+
+    _showTranslation = show;
+
+    try {
+      await _channel.invokeMethod('setShowTranslation', {'show': show});
+      
+      if (saveToPrefs) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(_keyShowTranslation, show);
+      }
+    } catch (e) {
+      print('❌ [DesktopLyric] 设置显示翻译失败: $e');
+    }
+  }
+
+  /// 切换显示翻译
+  Future<void> toggleShowTranslation() async {
+    await setShowTranslation(!_showTranslation);
+  }
+
+  // 预设颜色列表
+  static const List<int> _presetColors = [
+    0xFFFFFFFF, // 白色
+    0xFFFFD700, // 金色
+    0xFF00FF00, // 绿色
+    0xFF00FFFF, // 青色
+    0xFFFF69B4, // 粉色
+    0xFFFF6347, // 番茄红
+    0xFF87CEEB, // 天蓝色
+    0xFFDDA0DD, // 梅红色
+    0xFFFFA500, // 橙色
+    0xFF98FB98, // 淡绿色
+  ];
+
+  /// 循环切换文字颜色
+  Future<void> _cycleTextColor() async {
+    final currentIndex = _presetColors.indexOf(_textColor);
+    final nextIndex = (currentIndex + 1) % _presetColors.length;
+    final newColor = _presetColors[nextIndex];
+    await setTextColor(newColor);
+    print('✅ [DesktopLyric] 文字颜色已切换: 0x${newColor.toRadixString(16).toUpperCase()}');
+  }
 
   /// 设置播放控制回调
   void setPlaybackControlCallback(Function(String action) callback) {
     _playbackControlCallback = callback;
+  }
+  
+  /// 设置颜色选择器回调
+  void setColorPickerCallback(Function() callback) {
+    _colorPickerCallback = callback;
   }
   
   /// 处理来自原生代码的方法调用
@@ -373,12 +476,52 @@ class DesktopLyricService {
     switch (call.method) {
       case 'onPlaybackControl':
         final action = call.arguments['action'] as String;
+        await _handleAction(action);
+        break;
+      default:
+        print('⚠️ [DesktopLyric] 未知方法调用: ${call.method}');
+    }
+  }
+  
+  /// 处理控制面板按钮动作
+  Future<void> _handleAction(String action) async {
+    switch (action) {
+      case 'previous':
+      case 'play_pause':
+      case 'next':
+        // 播放控制动作，传递给回调
         if (_playbackControlCallback != null) {
           _playbackControlCallback!(action);
         }
         break;
+      case 'font_size_up':
+        // 增大字体
+        final newSize = (_fontSize + 4).clamp(16, 64);
+        await setFontSize(newSize);
+        print('✅ [DesktopLyric] 字体大小增加到: $newSize');
+        break;
+      case 'font_size_down':
+        // 减小字体
+        final newSize = (_fontSize - 4).clamp(16, 64);
+        await setFontSize(newSize);
+        print('✅ [DesktopLyric] 字体大小减小到: $newSize');
+        break;
+      case 'color_picker':
+        // 循环切换预设颜色
+        await _cycleTextColor();
+        break;
+      case 'toggle_translation':
+        // 切换翻译显示
+        await toggleShowTranslation();
+        print('✅ [DesktopLyric] 翻译显示: $_showTranslation');
+        break;
+      case 'close':
+        // 关闭悬浮窗
+        await hide();
+        print('✅ [DesktopLyric] 悬浮窗已关闭');
+        break;
       default:
-        print('⚠️ [DesktopLyric] 未知方法调用: ${call.method}');
+        print('⚠️ [DesktopLyric] 未知动作: $action');
     }
   }
 

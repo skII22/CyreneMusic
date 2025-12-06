@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent_ui;
 import '../../utils/theme_manager.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
@@ -8,9 +9,11 @@ import '../../services/layout_preference_service.dart';
 import '../../services/player_background_service.dart';
 import '../../services/window_background_service.dart';
 import '../../services/lyric_style_service.dart';
+import '../../services/lyric_font_service.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/custom_color_picker_dialog.dart';
 import '../../widgets/fluent_settings_card.dart';
+import '../../widgets/cupertino/cupertino_settings_widgets.dart';
 import 'player_background_dialog.dart';
 import 'window_background_dialog.dart';
 
@@ -75,9 +78,14 @@ class _AppearanceSettingsContentState extends State<AppearanceSettingsContent> {
   @override
   Widget build(BuildContext context) {
     final isFluentUI = Platform.isWindows && ThemeManager().isFluentFramework;
+    final isCupertinoUI = (Platform.isIOS || Platform.isAndroid) && ThemeManager().isCupertinoFramework;
     
     if (isFluentUI) {
       return _buildFluentUI(context);
+    }
+    
+    if (isCupertinoUI) {
+      return _buildCupertinoUI(context);
     }
     
     return _buildMaterialUI(context);
@@ -147,6 +155,14 @@ class _AppearanceSettingsContentState extends State<AppearanceSettingsContent> {
             ),
             const Divider(height: 1),
             ListTile(
+              leading: const Icon(Icons.font_download),
+              title: const Text('歌词字体'),
+              subtitle: Text(LyricFontService().currentFontName),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _showLyricFontDialog(),
+            ),
+            const Divider(height: 1),
+            ListTile(
               leading: const Icon(Icons.wallpaper),
               title: const Text('播放器背景'),
               subtitle: Text(
@@ -165,6 +181,24 @@ class _AppearanceSettingsContentState extends State<AppearanceSettingsContent> {
           ],
         ),
         const SizedBox(height: 16),
+        
+        // 移动端专属设置
+        if (Platform.isAndroid || Platform.isIOS) ...[
+          _buildMaterialSection(
+            context,
+            title: '界面风格',
+            children: [
+              ListTile(
+                leading: const Icon(Icons.phone_iphone),
+                title: const Text('界面风格'),
+                subtitle: Text(_getMobileThemeFrameworkSubtitle()),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _showMobileThemeFrameworkDialog(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+        ],
         
         // Windows 专属设置
         if (Platform.isWindows) ...[
@@ -236,6 +270,220 @@ class _AppearanceSettingsContentState extends State<AppearanceSettingsContent> {
           child: Column(children: children),
         ),
       ],
+    );
+  }
+
+  /// 构建 Cupertino UI 版本
+  Widget _buildCupertinoUI(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? CupertinoColors.black : CupertinoColors.systemGroupedBackground;
+    
+    final content = CupertinoScrollbar(
+      child: ListView(
+        children: [
+          // 主题设置（Cupertino 模式下只显示深色模式开关，主题色固定为 iOS 蓝色）
+          CupertinoSettingsSection(
+            header: '主题',
+            children: [
+              CupertinoSettingsTile(
+                icon: CupertinoIcons.moon_fill,
+                iconColor: CupertinoColors.systemIndigo,
+                title: '深色模式',
+                trailing: CupertinoSwitch(
+                  value: ThemeManager().isDarkMode,
+                  onChanged: (value) {
+                    ThemeManager().toggleDarkMode(value);
+                    setState(() {});
+                  },
+                ),
+              ),
+            ],
+          ),
+          
+          // 播放器设置
+          CupertinoSettingsSection(
+            header: '播放器',
+            children: [
+              CupertinoSettingsTile(
+                icon: CupertinoIcons.music_note,
+                iconColor: CupertinoColors.systemPink,
+                title: '全屏播放器样式',
+                subtitle: LyricStyleService().getStyleDescription(LyricStyleService().currentStyle),
+                showChevron: true,
+                onTap: () => _showCupertinoPlayerStyleDialog(),
+              ),
+              CupertinoSettingsTile(
+                icon: CupertinoIcons.textformat,
+                iconColor: CupertinoColors.systemOrange,
+                title: '歌词字体',
+                subtitle: LyricFontService().currentFontName,
+                showChevron: true,
+                onTap: () => _showCupertinoLyricFontDialog(),
+              ),
+              CupertinoSettingsTile(
+                icon: CupertinoIcons.photo_fill,
+                iconColor: CupertinoColors.systemTeal,
+                title: '播放器背景',
+                subtitle: PlayerBackgroundService().getBackgroundTypeName(),
+                showChevron: true,
+                onTap: () => _showPlayerBackgroundDialog(),
+              ),
+            ],
+          ),
+          
+          // 界面风格设置
+          CupertinoSettingsSection(
+            header: '界面风格',
+            children: [
+              CupertinoSettingsTile(
+                icon: CupertinoIcons.device_phone_portrait,
+                iconColor: ThemeManager.iosBlue,
+                title: '界面风格',
+                subtitle: _getMobileThemeFrameworkSubtitle(),
+                showChevron: true,
+                onTap: () => _showMobileThemeFrameworkDialog(),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    if (widget.embed) {
+      return Container(
+        color: backgroundColor,
+        child: content,
+      );
+    }
+    
+    return CupertinoPageScaffold(
+      backgroundColor: backgroundColor,
+      navigationBar: CupertinoNavigationBar(
+        backgroundColor: backgroundColor.withOpacity(0.8),
+        border: null,
+        leading: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: widget.onBack,
+          child: const Icon(CupertinoIcons.back),
+        ),
+        middle: const Text('外观'),
+      ),
+      child: SafeArea(
+        child: content,
+      ),
+    );
+  }
+
+  void _showCupertinoThemeColorPicker() {
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (context) => Container(
+        height: 400,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: CupertinoTheme.of(context).barBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemGrey,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Text(
+                '选择主题色',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 5,
+                    childAspectRatio: 1,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
+                  itemCount: ThemeColors.presets.length,
+                  itemBuilder: (context, index) {
+                    final colorScheme = ThemeColors.presets[index];
+                    final isSelected = ThemeManager().seedColor.value == colorScheme.color.value;
+                    
+                    return GestureDetector(
+                      onTap: () {
+                        ThemeManager().setSeedColor(colorScheme.color);
+                        Navigator.pop(context);
+                        setState(() {});
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: colorScheme.color,
+                          shape: BoxShape.circle,
+                          border: isSelected 
+                              ? Border.all(color: CupertinoColors.white, width: 3)
+                              : null,
+                          boxShadow: isSelected ? [
+                            BoxShadow(
+                              color: colorScheme.color.withOpacity(0.5),
+                              blurRadius: 8,
+                              spreadRadius: 2,
+                            ),
+                          ] : null,
+                        ),
+                        child: isSelected 
+                            ? const Icon(CupertinoIcons.checkmark, color: CupertinoColors.white, size: 24)
+                            : null,
+                      ),
+                    );
+                  },
+                ),
+              ),
+              CupertinoButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showCustomColorPicker();
+                },
+                child: const Text('自定义颜色'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showCupertinoPlayerStyleDialog() {
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('选择全屏播放器样式'),
+        actions: LyricStyle.values.map((style) {
+          final isSelected = LyricStyleService().currentStyle == style;
+          return CupertinoActionSheetAction(
+            isDefaultAction: isSelected,
+            onPressed: () {
+              LyricStyleService().setStyle(style);
+              Navigator.pop(context);
+              setState(() {});
+            },
+            child: Text(LyricStyleService().getStyleName(style)),
+          );
+        }).toList(),
+        cancelButton: CupertinoActionSheetAction(
+          isDestructiveAction: true,
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+      ),
     );
   }
 
@@ -376,6 +624,13 @@ class _AppearanceSettingsContentState extends State<AppearanceSettingsContent> {
             ),
           ),
           FluentSettingsTile(
+            icon: fluent_ui.FluentIcons.font_color_a,
+            title: '歌词字体',
+            subtitle: LyricFontService().currentFontName,
+            trailing: const Icon(fluent_ui.FluentIcons.chevron_right, size: 12),
+            onTap: () => _showLyricFontDialog(),
+          ),
+          FluentSettingsTile(
             icon: fluent_ui.FluentIcons.picture_library,
             title: '播放器背景',
             subtitle: '${PlayerBackgroundService().getBackgroundTypeName()} - ${PlayerBackgroundService().getBackgroundTypeDescription()}',
@@ -413,11 +668,30 @@ class _AppearanceSettingsContentState extends State<AppearanceSettingsContent> {
               width: 200,
               child: fluent_ui.ComboBox<WindowEffect>(
                 value: ThemeManager().windowEffect,
-                items: const [
-                  fluent_ui.ComboBoxItem(value: WindowEffect.disabled, child: Text('默认')),
-                  fluent_ui.ComboBoxItem(value: WindowEffect.mica, child: Text('云母')),
-                  fluent_ui.ComboBoxItem(value: WindowEffect.acrylic, child: Text('亚克力')),
-                  fluent_ui.ComboBoxItem(value: WindowEffect.transparent, child: Text('透明')),
+                items: [
+                  const fluent_ui.ComboBoxItem(value: WindowEffect.disabled, child: Text('默认')),
+                  fluent_ui.ComboBoxItem(
+                    value: WindowEffect.mica, 
+                    enabled: ThemeManager().isMicaSupported,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('云母'),
+                        if (!ThemeManager().isMicaSupported) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            '(需要 Win11)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: fluent_ui.FluentTheme.of(context).resources.textFillColorDisabled,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const fluent_ui.ComboBoxItem(value: WindowEffect.acrylic, child: Text('亚克力')),
+                  const fluent_ui.ComboBoxItem(value: WindowEffect.transparent, child: Text('透明')),
                 ],
                 onChanged: (effect) async {
                   if (effect != null) {
@@ -496,6 +770,15 @@ class _AppearanceSettingsContentState extends State<AppearanceSettingsContent> {
         return 'Material Design 3（默认推荐）';
       case ThemeFramework.fluent:
         return 'Fluent UI（Windows 原生风格）';
+    }
+  }
+
+  String _getMobileThemeFrameworkSubtitle() {
+    switch (ThemeManager().mobileThemeFramework) {
+      case MobileThemeFramework.material:
+        return 'Material Design 3（默认）';
+      case MobileThemeFramework.cupertino:
+        return 'Cupertino（iOS 风格）';
     }
   }
 
@@ -859,7 +1142,18 @@ class _AppearanceSettingsContentState extends State<AppearanceSettingsContent> {
 
   void _showPlayerBackgroundDialog() {
     final isFluentUI = Platform.isWindows && ThemeManager().isFluentFramework;
-    if (isFluentUI) {
+    final isCupertinoUI = (Platform.isIOS || Platform.isAndroid) && ThemeManager().isCupertinoFramework;
+    
+    if (isCupertinoUI) {
+      showCupertinoDialog(
+        context: context,
+        builder: (context) => PlayerBackgroundDialog(
+          onChanged: () {
+            if (mounted) setState(() {});
+          },
+        ),
+      );
+    } else if (isFluentUI) {
       fluent_ui.showDialog(
         context: context,
         builder: (context) => PlayerBackgroundDialog(
@@ -889,6 +1183,91 @@ class _AppearanceSettingsContentState extends State<AppearanceSettingsContent> {
         },
       ),
     );
+  }
+
+  void _showMobileThemeFrameworkDialog() {
+    final isCupertino = ThemeManager().isCupertinoFramework;
+    
+    if (isCupertino) {
+      // Cupertino 风格的底部弹窗
+      showCupertinoModalPopup<void>(
+        context: context,
+        builder: (context) => CupertinoActionSheet(
+          title: const Text('选择界面风格'),
+          message: const Text('切换后界面将自动刷新'),
+          actions: [
+            CupertinoActionSheetAction(
+              isDefaultAction: ThemeManager().mobileThemeFramework == MobileThemeFramework.material,
+              onPressed: () {
+                ThemeManager().setMobileThemeFramework(MobileThemeFramework.material);
+                Navigator.pop(context);
+                setState(() {});
+              },
+              child: const Text('Material Design 3'),
+            ),
+            CupertinoActionSheetAction(
+              isDefaultAction: ThemeManager().mobileThemeFramework == MobileThemeFramework.cupertino,
+              onPressed: () {
+                ThemeManager().setMobileThemeFramework(MobileThemeFramework.cupertino);
+                Navigator.pop(context);
+                setState(() {});
+              },
+              child: const Text('Cupertino（iOS 风格）'),
+            ),
+          ],
+          cancelButton: CupertinoActionSheetAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+        ),
+      );
+    } else {
+      // Material 风格的对话框
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('选择界面风格'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile<MobileThemeFramework>(
+                title: const Text('Material Design 3'),
+                subtitle: const Text('Android 原生设计风格'),
+                secondary: const Icon(Icons.android),
+                value: MobileThemeFramework.material,
+                groupValue: ThemeManager().mobileThemeFramework,
+                onChanged: (value) {
+                  if (value == null) return;
+                  ThemeManager().setMobileThemeFramework(value);
+                  Navigator.pop(context);
+                  setState(() {});
+                },
+              ),
+              RadioListTile<MobileThemeFramework>(
+                title: const Text('Cupertino'),
+                subtitle: const Text('iOS 原生设计风格'),
+                secondary: const Icon(Icons.phone_iphone),
+                value: MobileThemeFramework.cupertino,
+                groupValue: ThemeManager().mobileThemeFramework,
+                onChanged: (value) {
+                  if (value == null) return;
+                  ThemeManager().setMobileThemeFramework(value);
+                  Navigator.pop(context);
+                  setState(() {});
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('关闭'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   void _showThemeFrameworkDialog() {
@@ -994,5 +1373,425 @@ class _AppearanceSettingsContentState extends State<AppearanceSettingsContent> {
         ),
       );
     }
+  }
+
+  /// 显示歌词字体选择对话框 (Fluent UI / Material)
+  void _showLyricFontDialog() {
+    final isFluentUI = Platform.isWindows && ThemeManager().isFluentFramework;
+    
+    if (isFluentUI) {
+      fluent_ui.showDialog(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setDialogState) => fluent_ui.ContentDialog(
+            title: const Text('选择歌词字体'),
+            constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 预设字体列表
+                  Text(
+                    '预设字体',
+                    style: fluent_ui.FluentTheme.of(context).typography.subtitle,
+                  ),
+                  const SizedBox(height: 8),
+                  ...LyricFontService.presetFonts.map((font) {
+                    final isSelected = LyricFontService().fontType == 'preset' && 
+                                       LyricFontService().presetFontId == font.id;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: fluent_ui.RadioButton(
+                        checked: isSelected,
+                        onChanged: (v) async {
+                          await LyricFontService().setPresetFont(font.id);
+                          setDialogState(() {});
+                          if (mounted) setState(() {});
+                        },
+                        content: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              font.name,
+                              style: TextStyle(
+                                fontFamily: font.fontFamily,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              font.description,
+                              style: fluent_ui.FluentTheme.of(context).typography.caption,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                  
+                  const SizedBox(height: 16),
+                  const fluent_ui.Divider(),
+                  const SizedBox(height: 16),
+                  
+                  // 自定义字体
+                  Text(
+                    '自定义字体',
+                    style: fluent_ui.FluentTheme.of(context).typography.subtitle,
+                  ),
+                  const SizedBox(height: 8),
+                  if (LyricFontService().fontType == 'custom' && LyricFontService().customFontPath != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: fluent_ui.InfoBar(
+                        title: Text('当前使用: ${LyricFontService().customFontPath!.split(Platform.pathSeparator).last}'),
+                        severity: fluent_ui.InfoBarSeverity.success,
+                      ),
+                    ),
+                  Row(
+                    children: [
+                      fluent_ui.Button(
+                        onPressed: () async {
+                          final success = await LyricFontService().pickAndLoadCustomFont();
+                          if (success) {
+                            setDialogState(() {});
+                            if (mounted) setState(() {});
+                          }
+                        },
+                        child: const Text('选择字体文件'),
+                      ),
+                      const SizedBox(width: 8),
+                      if (LyricFontService().fontType == 'custom')
+                        fluent_ui.Button(
+                          onPressed: () async {
+                            await LyricFontService().clearCustomFont();
+                            setDialogState(() {});
+                            if (mounted) setState(() {});
+                          },
+                          child: const Text('清除自定义字体'),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '支持 .ttf, .otf, .ttc 格式的字体文件',
+                    style: fluent_ui.FluentTheme.of(context).typography.caption,
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              fluent_ui.Button(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('关闭'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      // Material UI 对话框
+      showDialog(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('选择歌词字体'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 预设字体列表
+                    Text(
+                      '预设字体',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ...LyricFontService.presetFonts.map((font) {
+                      final isSelected = LyricFontService().fontType == 'preset' && 
+                                         LyricFontService().presetFontId == font.id;
+                      return RadioListTile<String>(
+                        value: font.id,
+                        groupValue: LyricFontService().fontType == 'preset' 
+                            ? LyricFontService().presetFontId 
+                            : null,
+                        onChanged: (value) async {
+                          if (value != null) {
+                            await LyricFontService().setPresetFont(value);
+                            setDialogState(() {});
+                            if (mounted) setState(() {});
+                          }
+                        },
+                        title: Text(
+                          font.name,
+                          style: TextStyle(
+                            fontFamily: font.fontFamily,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Text(font.description),
+                        dense: true,
+                        selected: isSelected,
+                      );
+                    }),
+                    
+                    const Divider(height: 24),
+                    
+                    // 自定义字体
+                    Text(
+                      '自定义字体',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (LyricFontService().fontType == 'custom' && LyricFontService().customFontPath != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Card(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.check_circle,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    '当前使用: ${LyricFontService().customFontPath!.split(Platform.pathSeparator).last}',
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    Row(
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            final success = await LyricFontService().pickAndLoadCustomFont();
+                            if (success) {
+                              setDialogState(() {});
+                              if (mounted) setState(() {});
+                            }
+                          },
+                          icon: const Icon(Icons.folder_open),
+                          label: const Text('选择字体文件'),
+                        ),
+                        const SizedBox(width: 8),
+                        if (LyricFontService().fontType == 'custom')
+                          TextButton(
+                            onPressed: () async {
+                              await LyricFontService().clearCustomFont();
+                              setDialogState(() {});
+                              if (mounted) setState(() {});
+                            },
+                            child: const Text('清除'),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '支持 .ttf, .otf, .ttc 格式的字体文件',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('关闭'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+  }
+
+  /// 显示歌词字体选择对话框 (Cupertino)
+  void _showCupertinoLyricFontDialog() {
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => Material(
+          type: MaterialType.transparency,
+          child: Container(
+            height: MediaQuery.of(context).size.height * 0.7,
+            decoration: BoxDecoration(
+              color: CupertinoTheme.of(context).barBackgroundColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                children: [
+                  // 拖动指示器
+                  Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(top: 12, bottom: 8),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.systemGrey,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  // 标题
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      '选择歌词字体',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  // 内容
+                  Expanded(
+                    child: CupertinoScrollbar(
+                      child: ListView(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        children: [
+                          // 预设字体
+                          const Padding(
+                            padding: EdgeInsets.only(top: 16, bottom: 8),
+                            child: Text(
+                              '预设字体',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: CupertinoColors.systemGrey,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          ...LyricFontService.presetFonts.map((font) {
+                            final isSelected = LyricFontService().fontType == 'preset' && 
+                                               LyricFontService().presetFontId == font.id;
+                            return CupertinoListTile(
+                              title: Text(
+                                font.name,
+                                style: TextStyle(
+                                  fontFamily: font.fontFamily,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              subtitle: Text(font.description),
+                              trailing: isSelected 
+                                  ? const Icon(CupertinoIcons.checkmark, color: CupertinoColors.activeBlue)
+                                  : null,
+                              onTap: () async {
+                                await LyricFontService().setPresetFont(font.id);
+                                setDialogState(() {});
+                                if (mounted) setState(() {});
+                              },
+                            );
+                          }),
+                          
+                          // 自定义字体
+                          const Padding(
+                            padding: EdgeInsets.only(top: 24, bottom: 8),
+                            child: Text(
+                              '自定义字体',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: CupertinoColors.systemGrey,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          if (LyricFontService().fontType == 'custom' && LyricFontService().customFontPath != null)
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: CupertinoColors.activeGreen.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(CupertinoIcons.checkmark_circle_fill, color: CupertinoColors.activeGreen),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '当前使用: ${LyricFontService().customFontPath!.split(Platform.pathSeparator).last}',
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          Row(
+                            children: [
+                              CupertinoButton(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                color: CupertinoColors.activeBlue,
+                                onPressed: () async {
+                                  final success = await LyricFontService().pickAndLoadCustomFont();
+                                  if (success) {
+                                    setDialogState(() {});
+                                    if (mounted) setState(() {});
+                                  }
+                                },
+                                child: const Text('选择字体文件', style: TextStyle(color: CupertinoColors.white)),
+                              ),
+                              const SizedBox(width: 8),
+                              if (LyricFontService().fontType == 'custom')
+                                CupertinoButton(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  onPressed: () async {
+                                    await LyricFontService().clearCustomFont();
+                                    setDialogState(() {});
+                                    if (mounted) setState(() {});
+                                  },
+                                  child: const Text('清除'),
+                                ),
+                            ],
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.only(top: 8, bottom: 24),
+                            child: Text(
+                              '支持 .ttf, .otf, .ttc 格式的字体文件',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: CupertinoColors.systemGrey,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // 关闭按钮
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: CupertinoButton(
+                        color: CupertinoColors.systemGrey5,
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('关闭', style: TextStyle(color: CupertinoColors.label)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:window_manager/window_manager.dart';
@@ -13,6 +14,7 @@ import 'package:cyrene_music/services/developer_mode_service.dart';
 import 'package:cyrene_music/services/desktop_lyric_service.dart';
 import 'package:cyrene_music/services/listening_stats_service.dart';
 import 'package:cyrene_music/services/lyric_style_service.dart';
+import 'package:cyrene_music/services/lyric_font_service.dart';
 import 'package:cyrene_music/services/persistent_storage_service.dart';
 import 'package:cyrene_music/services/player_background_service.dart';
 import 'package:cyrene_music/services/player_service.dart';
@@ -128,6 +130,10 @@ void main() async {
   await LyricStyleService().initialize();
   DeveloperModeService().addLog('🎤 歌词样式服务已初始化');
   
+  // 初始化歌词字体服务
+  await LyricFontService().initialize();
+  DeveloperModeService().addLog('🔤 歌词字体服务已初始化');
+  
   // Android 平台特定初始化
   if (Platform.isAndroid) {
     // 启用边到边模式（让内容延伸到状态栏和导航栏下方）
@@ -235,6 +241,7 @@ class MyApp extends StatelessWidget {
         final darkTheme = themeManager.buildThemeData(Brightness.dark);
 
         final useFluentLayout = Platform.isWindows && themeManager.isFluentFramework;
+        final useCupertinoLayout = (Platform.isIOS || Platform.isAndroid) && themeManager.isCupertinoFramework;
 
         if (useFluentLayout) {
           return fluent.FluentApp(
@@ -245,6 +252,37 @@ class MyApp extends StatelessWidget {
             themeMode: _mapMaterialThemeMode(themeManager.themeMode),
             scrollBehavior: const _FluentScrollBehavior(),
             home: const FluentMainLayout(),
+          );
+        }
+
+        // 移动端 Cupertino 风格
+        if (useCupertinoLayout) {
+          final cupertinoTheme = themeManager.buildCupertinoThemeData(
+            themeManager.themeMode == ThemeMode.dark 
+                ? Brightness.dark 
+                : (themeManager.themeMode == ThemeMode.system 
+                    ? WidgetsBinding.instance.platformDispatcher.platformBrightness 
+                    : Brightness.light),
+          );
+          
+          // 使用 MaterialApp 包裹 CupertinoTheme 以保持 Navigator 等功能
+          return MaterialApp(
+            title: 'Cyrene Music',
+            debugShowCheckedModeBanner: false,
+            theme: lightTheme.copyWith(
+              cupertinoOverrideTheme: themeManager.buildCupertinoThemeData(Brightness.light),
+            ),
+            darkTheme: darkTheme.copyWith(
+              cupertinoOverrideTheme: themeManager.buildCupertinoThemeData(Brightness.dark),
+            ),
+            themeMode: themeManager.themeMode,
+            builder: (context, child) {
+              return CupertinoTheme(
+                data: cupertinoTheme,
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
+            home: const MainLayout(),
           );
         }
 

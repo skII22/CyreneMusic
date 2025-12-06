@@ -157,6 +157,20 @@ void DesktopLyricPlugin::HandleMethodCall(
     }
     result->Error("INVALID_ARGUMENT", "Missing 'size' argument");
     
+  } else if (method_name == "setLyricDuration") {
+    // Set lyric duration for scroll speed calculation
+    const auto* arguments = std::get_if<flutter::EncodableMap>(method_call.arguments());
+    if (arguments) {
+      auto duration_it = arguments->find(flutter::EncodableValue("duration"));
+      if (duration_it != arguments->end()) {
+        int duration = std::get<int>(duration_it->second);
+        lyric_window_->SetLyricDuration(static_cast<DWORD>(duration));
+        result->Success(flutter::EncodableValue(true));
+        return;
+      }
+    }
+    result->Error("INVALID_ARGUMENT", "Missing 'duration' argument");
+    
   } else if (method_name == "setTextColor") {
     // Set text color
     const auto* arguments = std::get_if<flutter::EncodableMap>(method_call.arguments());
@@ -265,6 +279,39 @@ void DesktopLyricPlugin::HandleMethodCall(
       }
     }
     result->Error("INVALID_ARGUMENT", "Missing 'isPlaying' argument");
+    
+  } else if (method_name == "setTranslationText") {
+    // Set translation text
+    const auto* arguments = std::get_if<flutter::EncodableMap>(method_call.arguments());
+    if (arguments) {
+      auto text_it = arguments->find(flutter::EncodableValue("text"));
+      if (text_it != arguments->end()) {
+        std::string text = std::get<std::string>(text_it->second);
+        lyric_window_->SetTranslationText(StringToWString(text));
+        result->Success(flutter::EncodableValue(true));
+        return;
+      }
+    }
+    result->Error("INVALID_ARGUMENT", "Missing 'text' argument");
+    
+  } else if (method_name == "setShowTranslation") {
+    // Set show translation state
+    const auto* arguments = std::get_if<flutter::EncodableMap>(method_call.arguments());
+    if (arguments) {
+      auto show_it = arguments->find(flutter::EncodableValue("show"));
+      if (show_it != arguments->end()) {
+        bool show = std::get<bool>(show_it->second);
+        lyric_window_->SetShowTranslation(show);
+        result->Success(flutter::EncodableValue(true));
+        return;
+      }
+    }
+    result->Error("INVALID_ARGUMENT", "Missing 'show' argument");
+    
+  } else if (method_name == "getShowTranslation") {
+    // Get show translation state
+    bool show = lyric_window_->GetShowTranslation();
+    result->Success(flutter::EncodableValue(show));
     
   } else {
     result->NotImplemented();

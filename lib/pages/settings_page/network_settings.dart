@@ -1,10 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent_ui;
 import 'package:http/http.dart' as http;
 import '../../services/url_service.dart';
 import '../../widgets/fluent_settings_card.dart';
+import '../../widgets/cupertino/cupertino_settings_widgets.dart';
+import '../../utils/theme_manager.dart';
 
 /// 网络设置组件
 class NetworkSettings extends StatefulWidget {
@@ -59,6 +62,7 @@ class _NetworkSettingsState extends State<NetworkSettings> {
   @override
   Widget build(BuildContext context) {
     final isFluent = fluent_ui.FluentTheme.maybeOf(context) != null;
+    final isCupertino = ThemeManager().isCupertinoFramework;
 
     if (isFluent) {
       return FluentSettingsGroup(
@@ -81,6 +85,10 @@ class _NetworkSettingsState extends State<NetworkSettings> {
           ),
         ],
       );
+    }
+
+    if (isCupertino) {
+      return _buildCupertinoUI(context);
     }
 
     return Column(
@@ -112,6 +120,77 @@ class _NetworkSettingsState extends State<NetworkSettings> {
           ),
         ),
       ],
+    );
+  }
+
+  /// 构建 Cupertino UI 版本
+  Widget _buildCupertinoUI(BuildContext context) {
+    return Column(
+      children: [
+        CupertinoSettingsTile(
+          icon: CupertinoIcons.globe,
+          iconColor: CupertinoColors.systemBlue,
+          title: '后端源',
+          subtitle: UrlService().getSourceDescription(),
+          showChevron: true,
+          onTap: () => _showBackendSourceDialogCupertino(context),
+        ),
+        const SizedBox(height: 1),
+        CupertinoSettingsTile(
+          icon: CupertinoIcons.wifi,
+          iconColor: CupertinoColors.systemGreen,
+          title: '测试连接',
+          subtitle: _errorMessage != null
+              ? '无法连接后端服务器'
+              : '自动检测与后端服务器的连接',
+          trailing: _buildLatencyIndicatorCupertino(context),
+        ),
+      ],
+    );
+  }
+
+  /// 构建 Cupertino 风格的延迟指示器
+  Widget _buildLatencyIndicatorCupertino(BuildContext context) {
+    if (_isTesting) {
+      return const CupertinoActivityIndicator();
+    }
+
+    if (_latencyMs != null) {
+      final latency = _latencyMs!.clamp(0, 9999);
+      Color displayColor;
+      if (latency <= 100) {
+        displayColor = CupertinoColors.systemGreen;
+      } else if (latency <= 300) {
+        displayColor = CupertinoColors.systemOrange;
+      } else {
+        displayColor = CupertinoColors.systemRed;
+      }
+
+      return Text(
+        '${latency} ms',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: displayColor,
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Text(
+        '失联',
+        style: TextStyle(
+          color: CupertinoColors.systemRed,
+          fontWeight: FontWeight.bold,
+        ),
+      );
+    }
+
+    return Text(
+      '--',
+      style: TextStyle(
+        color: CupertinoColors.systemGrey,
+        fontWeight: FontWeight.bold,
+      ),
     );
   }
 
@@ -390,6 +469,122 @@ class _NetworkSettingsState extends State<NetworkSettings> {
                   SnackBar(content: Text('已切换到自定义源: $url')),
                 );
               }
+            },
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 显示 Cupertino 风格的后端源选择对话框
+  void _showBackendSourceDialogCupertino(BuildContext context) {
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('选择后端源'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              UrlService().useOfficialSource();
+              Navigator.pop(context);
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (UrlService().sourceType == BackendSourceType.official)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: Icon(CupertinoIcons.checkmark, size: 18),
+                  ),
+                const Text('官方源'),
+              ],
+            ),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _showCustomUrlDialogCupertino(context);
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (UrlService().sourceType == BackendSourceType.custom)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: Icon(CupertinoIcons.checkmark, size: 18),
+                  ),
+                const Text('自定义源'),
+                if (UrlService().customBaseUrl.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    UrlService().customBaseUrl,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: CupertinoColors.systemGrey,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+      ),
+    );
+  }
+
+  /// 显示 Cupertino 风格的自定义 URL 对话框
+  void _showCustomUrlDialogCupertino(BuildContext context) {
+    final controller = TextEditingController(text: UrlService().customBaseUrl);
+    
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('自定义后端源'),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 16),
+          child: Column(
+            children: [
+              CupertinoTextField(
+                controller: controller,
+                placeholder: 'http://example.com:4055',
+                keyboardType: TextInputType.url,
+                clearButtonMode: OverlayVisibilityMode.editing,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '不要在末尾添加斜杠',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: CupertinoColors.systemGrey,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            isDestructiveAction: false,
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () {
+              final url = controller.text.trim();
+              if (url.isEmpty) {
+                return;
+              }
+              if (!UrlService.isValidUrl(url)) {
+                return;
+              }
+              UrlService().useCustomSource(url);
+              Navigator.pop(context);
             },
             child: const Text('保存'),
           ),

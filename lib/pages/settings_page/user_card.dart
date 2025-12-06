@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent_ui;
 import '../../services/auth_service.dart';
 import '../../services/location_service.dart';
@@ -958,12 +959,17 @@ class _UserCardState extends State<UserCard> {
     final isLoggedIn = AuthService().isLoggedIn;
     final user = AuthService().currentUser;
     final isFluentUI = Platform.isWindows && ThemeManager().isFluentFramework;
+    final isCupertinoUI = ThemeManager().isCupertinoFramework;
     
     if (!isLoggedIn || user == null) {
-      return isFluentUI ? _buildLoginCardFluent(context) : _buildLoginCard(context);
+      if (isFluentUI) return _buildLoginCardFluent(context);
+      if (isCupertinoUI) return _buildLoginCardCupertino(context);
+      return _buildLoginCard(context);
     }
     
-    return isFluentUI ? _buildUserInfoCardFluent(context, user) : _buildUserInfoCard(context, user);
+    if (isFluentUI) return _buildUserInfoCardFluent(context, user);
+    if (isCupertinoUI) return _buildUserInfoCardCupertino(context, user);
+    return _buildUserInfoCard(context, user);
   }
 
   /// 构建登录卡片（未登录状态）
@@ -1287,6 +1293,245 @@ class _UserCardState extends State<UserCard> {
             child: const Text('退出'),
           ),
         ],
+      ),
+    );
+  }
+
+  // ==================== Cupertino UI 版本 ====================
+
+  /// 构建登录卡片 - Cupertino UI 版本
+  Widget _buildLoginCardCupertino(BuildContext context) {
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: () => _handleLogin(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+        child: Row(
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: const BoxDecoration(
+                color: CupertinoColors.systemGrey4,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(CupertinoIcons.person_fill, size: 36, color: CupertinoColors.white),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '登录到 Cyrene',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w500,
+                      color: CupertinoColors.label.resolveFrom(context),
+                      fontFamily: '.SF Pro Text',
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '登录以同步数据',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                      fontFamily: '.SF Pro Text',
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(CupertinoIcons.chevron_forward, color: CupertinoColors.systemGrey3),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 构建用户信息卡片 - Cupertino UI 版本
+  Widget _buildUserInfoCardCupertino(BuildContext context, User user) {
+    final qqNumber = _extractQQNumber(user.email);
+    final avatarUrl = _getQQAvatarUrl(qqNumber);
+    
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: () => _showCupertinoUserActions(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+        child: Row(
+          children: [
+            // 头像
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                image: avatarUrl != null
+                    ? DecorationImage(
+                        image: NetworkImage(avatarUrl),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+                color: avatarUrl == null ? CupertinoColors.systemBlue : null,
+              ),
+              child: avatarUrl == null
+                  ? const Icon(CupertinoIcons.person_fill, size: 32, color: CupertinoColors.white)
+                  : null,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 用户名 + 赞助
+                  Row(
+                    children: [
+                      Text(
+                        user.username,
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w500,
+                          color: CupertinoColors.label.resolveFrom(context),
+                          decoration: TextDecoration.none,
+                        ),
+                      ),
+                      if (_isSponsor) ...[
+                        const SizedBox(width: 6),
+                        const Icon(CupertinoIcons.checkmark_seal_fill, size: 16, color: CupertinoColors.systemYellow),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    user.email,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                      decoration: TextDecoration.none,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const Icon(CupertinoIcons.chevron_forward, color: CupertinoColors.systemGrey3),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 显示 Cupertino 用户操作菜单
+  void _showCupertinoUserActions(BuildContext context) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _showUpdateUsernameDialogCupertino(context);
+            },
+            child: const Text('修改用户名'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              LocationService().fetchLocation();
+            },
+            child: const Text('刷新位置信息'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDestructiveAction: true,
+          onPressed: () {
+             Navigator.pop(context);
+             _handleLogoutCupertino(context);
+          },
+          child: const Text('退出登录'),
+        ),
+      ),
+    );
+  }
+
+  /// 退出登录确认 - Cupertino
+  void _handleLogoutCupertino(BuildContext context) {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('退出登录'),
+        content: const Text('确定要退出登录吗？'),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              AuthService().logout();
+              LocationService().clearLocation();
+              Navigator.pop(context);
+            },
+            child: const Text('退出'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  /// 修改用户名对话框 - Cupertino
+  void _showUpdateUsernameDialogCupertino(BuildContext context) {
+    final currentUser = AuthService().currentUser;
+    if (currentUser == null) return;
+    
+    _usernameController.text = currentUser.username;
+    
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => CupertinoAlertDialog(
+          title: const Text('修改用户名'),
+          content: Container(
+            padding: const EdgeInsets.only(top: 16, bottom: 8),
+            constraints: const BoxConstraints(minHeight: 80),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CupertinoTextField(
+                  controller: _usernameController,
+                  placeholder: '2-20位，中文/字母/数字/下划线',
+                  autofocus: true,
+                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            CupertinoDialogAction(
+              onPressed: () async {
+                final newUsername = _usernameController.text.trim();
+                if (newUsername.isEmpty || newUsername == currentUser.username) return;
+                
+                final result = await AuthService().updateUsername(newUsername);
+                if (result['success'] == true && mounted) {
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('确定'),
+            ),
+          ],
+        ),
       ),
     );
   }

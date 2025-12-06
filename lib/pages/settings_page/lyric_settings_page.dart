@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent_ui;
 import '../../utils/theme_manager.dart';
@@ -65,6 +66,10 @@ class _LyricSettingsContentState extends State<LyricSettingsContent> {
     if (isFluentUI) {
       return _buildFluentUI(context);
     }
+
+    if (ThemeManager().isCupertinoFramework) {
+      return _buildCupertinoUI(context);
+    }
     
     return _buildMaterialUI(context);
   }
@@ -88,6 +93,17 @@ class _LyricSettingsContentState extends State<LyricSettingsContent> {
             children: const [AndroidFloatingLyricSettings()],
           ),
         ],
+      ],
+    );
+  }
+
+  /// 构建 Cupertino UI 版本
+  Widget _buildCupertinoUI(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.only(top: 20),
+      children: [
+        if (Platform.isAndroid)
+          const AndroidFloatingLyricSettings(),
       ],
     );
   }

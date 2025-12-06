@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent_ui;
 import '../../widgets/fluent_settings_card.dart';
+import '../../widgets/cupertino/cupertino_settings_widgets.dart';
 import '../../services/auth_service.dart';
 import '../../services/netease_login_service.dart';
 import '../../services/kugou_login_service.dart';
@@ -94,12 +96,28 @@ class _ThirdPartyAccountsState extends State<ThirdPartyAccounts> {
     }
     
     final isFluentUI = Platform.isWindows && ThemeManager().isFluentFramework;
+    final isCupertinoUI = ThemeManager().isCupertinoFramework;
     
     if (isFluentUI) {
       return _buildFluentUI(context);
     }
     
+    if (isCupertinoUI) {
+      return _buildCupertinoUI(context);
+    }
+    
     return _buildMaterialUI(context);
+  }
+
+  /// 构建 Cupertino UI 版本 - 入口卡片
+  Widget _buildCupertinoUI(BuildContext context) {
+    return CupertinoSettingsCard(
+      icon: CupertinoIcons.person_2_fill,
+      iconColor: ThemeManager.iosBlue,
+      title: '第三方账号管理',
+      subtitle: _getSubtitle(),
+      onTap: widget.onTap,
+    );
   }
 
   /// 构建 Material UI 版本 - 入口卡片

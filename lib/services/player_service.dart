@@ -1407,19 +1407,33 @@ class PlayerService extends ChangeNotifier {
         _currentLyricIndex = newIndex;
         final currentLine = _lyrics[newIndex];
         
-        // 构建显示文本（如果有翻译则显示原文 + 翻译）
-        String displayText = currentLine.text;
-        if (currentLine.translation != null && currentLine.translation!.isNotEmpty) {
-          displayText = '${currentLine.text}\n${currentLine.translation}';
+        // 计算当前歌词行的持续时间（毫秒）
+        int? durationMs;
+        if (newIndex + 1 < _lyrics.length) {
+          // 下一行歌词的时间减去当前行的时间
+          durationMs = _lyrics[newIndex + 1].startTime.inMilliseconds - currentLine.startTime.inMilliseconds;
+        } else {
+          // 最后一行歌词，使用默认3秒
+          durationMs = 3000;
         }
         
-        // 更新Windows桌面歌词
+        // 更新Windows桌面歌词（分别发送歌词和翻译）
         if (isWindowsVisible) {
-          DesktopLyricService().setLyricText(displayText);
+          DesktopLyricService().setLyricText(currentLine.text, durationMs: durationMs);
+          // 发送翻译文本（如果有）
+          if (currentLine.translation != null && currentLine.translation!.isNotEmpty) {
+            DesktopLyricService().setTranslationText(currentLine.translation!);
+          } else {
+            DesktopLyricService().setTranslationText('');
+          }
         }
         
-        // 更新Android悬浮歌词
+        // 更新Android悬浮歌词（保持原有逻辑，合并显示）
         if (isAndroidVisible) {
+          String displayText = currentLine.text;
+          if (currentLine.translation != null && currentLine.translation!.isNotEmpty) {
+            displayText = '${currentLine.text}\n${currentLine.translation}';
+          }
           AndroidFloatingLyricService().setLyricText(displayText);
         }
       }
@@ -1433,7 +1447,23 @@ class PlayerService extends ChangeNotifier {
   /// 
   /// 这个方法由 AudioHandler 的定时器调用，确保即使应用在后台，
   /// 悬浮歌词也能持续更新
-  void updateFloatingLyricManually() {
+  Future<void> updateFloatingLyricManually() async {
+    // 🔥 关键修复：主动获取播放器的当前位置，而不是依赖 onPositionChanged 事件
+    // 因为在后台时，onPositionChanged 事件可能被系统节流或延迟
+    try {
+      final currentPos = await _audioPlayer.getCurrentPosition();
+      if (currentPos != null) {
+        _position = currentPos;
+        
+        // 同步位置到原生层，让原生层可以基于最新的位置进行自动推进
+        if (Platform.isAndroid && AndroidFloatingLyricService().isVisible) {
+          AndroidFloatingLyricService().updatePosition(_position);
+        }
+      }
+    } catch (e) {
+      // 忽略获取位置失败的错误，使用缓存的位置
+    }
+    
     _updateFloatingLyric();
   }
 

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent_ui;
 import '../../widgets/fluent_settings_card.dart';
+import '../../widgets/cupertino/cupertino_settings_widgets.dart';
 import '../../services/audio_quality_service.dart';
 import '../../models/song_detail.dart';
+import '../../utils/theme_manager.dart';
 
 /// 播放设置组件
 class PlaybackSettings extends StatelessWidget {
@@ -11,6 +14,7 @@ class PlaybackSettings extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isFluent = fluent_ui.FluentTheme.maybeOf(context) != null;
+    final isCupertino = ThemeManager().isCupertinoFramework;
 
     if (isFluent) {
       return FluentSettingsGroup(
@@ -28,6 +32,10 @@ class PlaybackSettings extends StatelessWidget {
       );
     }
 
+    if (isCupertino) {
+      return _buildCupertinoUI(context);
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -43,6 +51,18 @@ class PlaybackSettings extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  /// 构建 Cupertino UI 版本
+  Widget _buildCupertinoUI(BuildContext context) {
+    return CupertinoSettingsTile(
+      icon: CupertinoIcons.music_note_2,
+      iconColor: CupertinoColors.systemPurple,
+      title: '音质选择',
+      subtitle: '${AudioQualityService().getQualityName()} - ${AudioQualityService().getQualityDescription()}',
+      showChevron: true,
+      onTap: () => _showAudioQualityDialogCupertino(context),
     );
   }
 
@@ -199,6 +219,100 @@ class PlaybackSettings extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+
+  /// 显示 Cupertino 风格的音质选择对话框
+  void _showAudioQualityDialogCupertino(BuildContext context) {
+    final currentQuality = AudioQualityService().currentQuality;
+    
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('选择音质'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              AudioQualityService().setQuality(AudioQuality.standard);
+              Navigator.pop(context);
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (currentQuality == AudioQuality.standard)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: Icon(CupertinoIcons.checkmark, size: 18),
+                  ),
+                const Text('标准音质'),
+                const SizedBox(width: 8),
+                Text(
+                  '128kbps，节省流量',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: CupertinoColors.systemGrey,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              AudioQualityService().setQuality(AudioQuality.exhigh);
+              Navigator.pop(context);
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (currentQuality == AudioQuality.exhigh)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: Icon(CupertinoIcons.checkmark, size: 18),
+                  ),
+                const Text('极高音质'),
+                const SizedBox(width: 8),
+                Text(
+                  '320kbps，推荐',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: CupertinoColors.systemGrey,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              AudioQualityService().setQuality(AudioQuality.lossless);
+              Navigator.pop(context);
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (currentQuality == AudioQuality.lossless)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: Icon(CupertinoIcons.checkmark, size: 18),
+                  ),
+                const Text('无损音质'),
+                const SizedBox(width: 8),
+                Text(
+                  'FLAC，音质最佳',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: CupertinoColors.systemGrey,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+      ),
     );
   }
 }

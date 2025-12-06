@@ -1,7 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../services/android_floating_lyric_service.dart';
+import '../utils/theme_manager.dart';
+import 'cupertino/cupertino_settings_widgets.dart';
 
 /// Android 悬浮歌词设置组件
 class AndroidFloatingLyricSettings extends StatefulWidget {
@@ -35,6 +38,10 @@ class _AndroidFloatingLyricSettingsState extends State<AndroidFloatingLyricSetti
   Widget build(BuildContext context) {
     if (!Platform.isAndroid) {
       return const SizedBox.shrink();
+    }
+
+    if (ThemeManager().isCupertinoFramework) {
+      return _buildCupertinoSettings(context);
     }
 
     return _buildSettingCard([
@@ -154,6 +161,273 @@ class _AndroidFloatingLyricSettingsState extends State<AndroidFloatingLyricSetti
         },
       ),
     ]);
+  }
+
+  /// 构建 Cupertino 风格设置
+  Widget _buildCupertinoSettings(BuildContext context) {
+    return CupertinoSettingsSection(
+      children: [
+        // 权限状态
+        CupertinoSettingsTile(
+          title: '权限状态',
+          subtitle: _hasPermission ? '已获得悬浮窗权限' : '需要悬浮窗权限',
+          icon: _hasPermission ? CupertinoIcons.check_mark_circled : CupertinoIcons.exclamationmark_circle,
+          iconColor: _hasPermission ? CupertinoColors.activeGreen : CupertinoColors.systemOrange,
+          trailing: _hasPermission ? null : CupertinoButton(
+            padding: EdgeInsets.zero,
+            child: const Text('授权'),
+            onPressed: () async {
+              final granted = await _lyricService.requestPermissionWithDialog(context);
+              if (granted) {
+                await _checkPermission();
+              }
+            },
+          ),
+        ),
+        
+        // 启用悬浮歌词
+        CupertinoSettingsTile(
+          title: '启用悬浮歌词',
+          subtitle: _lyricService.isVisible ? '已显示' : '已隐藏',
+          icon: CupertinoIcons.captions_bubble,
+          iconColor: CupertinoColors.systemBlue,
+          trailing: CupertinoSwitch(
+            value: _lyricService.isVisible,
+            onChanged: (value) async {
+              if (value) {
+                final granted = await _lyricService.requestPermissionWithDialog(context);
+                if (granted) {
+                  await _lyricService.show();
+                  await _checkPermission();
+                }
+              } else {
+                await _lyricService.hide();
+              }
+              setState(() {});
+            },
+          ),
+        ),
+
+        // 字体大小
+        CupertinoSettingsTile(
+          title: '字体大小',
+          subtitle: '${_lyricService.config['fontSize']}px',
+          icon: CupertinoIcons.textformat_size,
+          iconColor: CupertinoColors.systemGrey,
+          showChevron: true,
+          onTap: () => _showCupertinoValuePicker(
+            title: '字体大小',
+            value: _lyricService.config['fontSize'].toDouble(),
+            min: 12.0,
+            max: 48.0,
+            divisions: 36,
+            labelFormat: (v) => '${v.round()}px',
+            onChanged: (v) async {
+              await _lyricService.setFontSize(v.round());
+              setState(() {});
+            },
+          ),
+        ),
+
+        // 文字颜色
+        CupertinoSettingsTile(
+          title: '文字颜色',
+          icon: CupertinoIcons.paintbrush,
+          iconColor: CupertinoColors.systemIndigo,
+          trailing: Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: Color(_lyricService.config['textColor']),
+              shape: BoxShape.circle,
+              border: Border.all(color: CupertinoColors.systemGrey4),
+            ),
+          ),
+          onTap: () => showCupertinoColorPicker(
+            context: context,
+            colors: ThemeColors.presets.map((e) => e.color).toList(),
+            currentColor: Color(_lyricService.config['textColor']),
+            onColorSelected: (color) async {
+              await _lyricService.setTextColor(color.value);
+              setState(() {});
+            },
+          ),
+        ),
+
+        // 描边颜色
+        CupertinoSettingsTile(
+          title: '描边颜色',
+          icon: CupertinoIcons.pencil_outline,
+          iconColor: CupertinoColors.systemOrange,
+          trailing: Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: Color(_lyricService.config['strokeColor']),
+              shape: BoxShape.circle,
+              border: Border.all(color: CupertinoColors.systemGrey4),
+            ),
+          ),
+          onTap: () => showCupertinoColorPicker(
+            context: context,
+            colors: ThemeColors.presets.map((e) => e.color).toList(),
+            currentColor: Color(_lyricService.config['strokeColor']),
+            onColorSelected: (color) async {
+              await _lyricService.setStrokeColor(color.value);
+              setState(() {});
+            },
+          ),
+        ),
+
+        // 描边宽度
+        CupertinoSettingsTile(
+          title: '描边宽度',
+          subtitle: '${_lyricService.config['strokeWidth']}px',
+          icon: CupertinoIcons.scribble,
+          iconColor: CupertinoColors.systemPink,
+          showChevron: true,
+          onTap: () => _showCupertinoValuePicker(
+            title: '描边宽度',
+            value: _lyricService.config['strokeWidth'].toDouble(),
+            min: 0.0,
+            max: 8.0,
+            divisions: 8,
+            labelFormat: (v) => '${v.round()}px',
+            onChanged: (v) async {
+              await _lyricService.setStrokeWidth(v.round());
+              setState(() {});
+            },
+          ),
+        ),
+
+        // 透明度
+        CupertinoSettingsTile(
+          title: '透明度',
+          subtitle: '${(_lyricService.config['alpha'] * 100).toInt()}%',
+          icon: CupertinoIcons.circle_grid_hex,
+          iconColor: CupertinoColors.systemTeal,
+          showChevron: true,
+          onTap: () => _showCupertinoValuePicker(
+            title: '透明度',
+            value: _lyricService.config['alpha'],
+            min: 0.1,
+            max: 1.0,
+            divisions: 9,
+            labelFormat: (v) => '${(v * 100).toInt()}%',
+            onChanged: (v) async {
+              await _lyricService.setAlpha(v);
+              setState(() {});
+            },
+          ),
+        ),
+
+        // 允许拖动
+        CupertinoSettingsTile(
+          title: '允许拖动',
+          subtitle: _lyricService.config['isDraggable'] ? '可拖动' : '已锁定',
+          icon: CupertinoIcons.move,
+          iconColor: CupertinoColors.systemPurple,
+          trailing: CupertinoSwitch(
+            value: _lyricService.config['isDraggable'],
+            onChanged: (value) async {
+              await _lyricService.setDraggable(value);
+              setState(() {});
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 显示 Cupertino 风格数值选择器
+  Future<void> _showCupertinoValuePicker({
+    required String title,
+    required double value,
+    required double min,
+    required double max,
+    required int divisions,
+    required String Function(double) labelFormat,
+    required ValueChanged<double> onChanged,
+  }) async {
+    double tempValue = value;
+    
+    await showCupertinoModalPopup(
+      context: context,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final textColor = isDark ? CupertinoColors.white : CupertinoColors.black;
+        
+        return Container(
+          height: 300,
+          color: isDark ? const Color(0xFF1C1C1E) : CupertinoColors.systemBackground,
+          child: SafeArea(
+            top: false,
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    CupertinoButton(
+                      child: const Text('取消'),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                    CupertinoButton(
+                      child: const Text('完成'),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: StatefulBuilder(
+                      builder: (context, setState) => Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            labelFormat(tempValue),
+                            style: TextStyle(
+                              fontSize: 24,
+                              color: textColor,
+                              decoration: TextDecoration.none,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: double.infinity,
+                            child: CupertinoSlider(
+                              value: tempValue,
+                              min: min,
+                              max: max,
+                              divisions: divisions,
+                              onChanged: (v) {
+                                setState(() {
+                                  tempValue = v;
+                                });
+                                onChanged(v);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   /// 构建权限状态指示器

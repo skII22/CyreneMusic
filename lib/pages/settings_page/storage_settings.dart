@@ -1,10 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent_ui;
 import 'package:file_picker/file_picker.dart';
 import '../../services/cache_service.dart';
 import '../../services/download_service.dart';
 import '../../widgets/fluent_settings_card.dart';
+import '../../widgets/cupertino/cupertino_settings_widgets.dart';
+import '../../utils/theme_manager.dart';
 
 /// 存储设置组件
 class StorageSettings extends StatefulWidget {
@@ -18,6 +21,7 @@ class _StorageSettingsState extends State<StorageSettings> {
   @override
   Widget build(BuildContext context) {
     final isFluent = fluent_ui.FluentTheme.maybeOf(context) != null;
+    final isCupertino = ThemeManager().isCupertinoFramework;
 
     if (isFluent) {
       return FluentSettingsGroup(
@@ -60,6 +64,10 @@ class _StorageSettingsState extends State<StorageSettings> {
             ),
         ],
       );
+    }
+
+    if (isCupertino) {
+      return _buildCupertinoUI(context);
     }
 
     return Column(
@@ -115,6 +123,106 @@ class _StorageSettingsState extends State<StorageSettings> {
           ),
         ),
       ],
+    );
+  }
+
+  /// 构建 Cupertino UI 版本
+  Widget _buildCupertinoUI(BuildContext context) {
+    return Column(
+      children: [
+        // 启用缓存开关
+        CupertinoSwitchTile(
+          icon: CupertinoIcons.cloud_download,
+          iconColor: CupertinoColors.systemBlue,
+          title: '启用缓存',
+          subtitle: CacheService().cacheEnabled
+              ? '自动缓存播放过的歌曲'
+              : '缓存已禁用',
+          value: CacheService().cacheEnabled,
+          onChanged: (value) async {
+            await CacheService().setCacheEnabled(value);
+            setState(() {});
+          },
+        ),
+        // 缓存管理
+        CupertinoSettingsTile(
+          icon: CupertinoIcons.tray_full,
+          iconColor: CupertinoColors.systemOrange,
+          title: '缓存管理',
+          subtitle: _getCacheSubtitle(),
+          showChevron: true,
+          onTap: () => _showCacheManagementCupertino(),
+        ),
+      ],
+    );
+  }
+
+  /// 显示 Cupertino 风格的缓存管理对话框
+  Future<void> _showCacheManagementCupertino() async {
+    final stats = await CacheService().getCacheStats();
+    if (!mounted) return;
+    
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('缓存管理'),
+        message: Text(
+          '占用空间: ${stats.formattedSize}\n'
+          '已缓存 ${stats.totalFiles} 首歌曲',
+        ),
+        actions: [
+          if (stats.totalFiles > 0)
+            CupertinoActionSheetAction(
+              isDestructiveAction: true,
+              onPressed: () {
+                Navigator.pop(context);
+                _confirmClearCacheCupertino();
+              },
+              child: const Text('清除缓存'),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          onPressed: () => Navigator.pop(context),
+          child: const Text('关闭'),
+        ),
+      ),
+    );
+  }
+
+  /// 确认清除缓存 - Cupertino 风格
+  Future<void> _confirmClearCacheCupertino() async {
+    final stats = await CacheService().getCacheStats();
+    if (!mounted) return;
+    
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('清除缓存'),
+        content: Text(
+          '确定要清除所有缓存吗？\n\n'
+          '将删除 ${stats.totalFiles} 首歌曲的缓存\n'
+          '释放 ${stats.formattedSize} 空间',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            isDestructiveAction: false,
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () async {
+              Navigator.pop(context);
+              await CacheService().clearAllCache();
+              if (mounted) {
+                setState(() {});
+              }
+            },
+            child: const Text('清除'),
+          ),
+        ],
+      ),
     );
   }
 

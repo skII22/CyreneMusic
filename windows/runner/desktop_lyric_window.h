@@ -96,6 +96,30 @@ class DesktopLyricWindow {
   RECT play_pause_button_rect_;
   RECT prev_button_rect_;
   RECT next_button_rect_;
+  RECT font_size_up_rect_;
+  RECT font_size_down_rect_;
+  RECT color_picker_rect_;
+  RECT translation_toggle_rect_;
+  RECT close_button_rect_;
+  
+  // Translation display state
+  bool show_translation_;
+  std::wstring translation_text_;
+  
+  // Scrolling state for long text
+  float lyric_scroll_offset_;
+  float trans_scroll_offset_;
+  bool lyric_needs_scroll_;
+  bool trans_needs_scroll_;
+  float lyric_text_width_;
+  float trans_text_width_;
+  DWORD last_scroll_time_;
+  static const int kScrollPauseMs = 500;  // brief pause at start before scrolling
+  DWORD lyric_scroll_pause_start_;
+  DWORD trans_scroll_pause_start_;
+  DWORD lyric_duration_ms_;  // Duration this lyric line will be displayed
+  float lyric_scroll_speed_;  // Calculated scroll speed for current lyric
+  float trans_scroll_speed_;  // Calculated scroll speed for translation
   
   // Playback control callback
   PlaybackControlCallback playback_callback_;
@@ -105,6 +129,19 @@ class DesktopLyricWindow {
   void DrawControlPanel(HDC hdc, int width, int height);
   bool HandleButtonClick(const POINT& pt);  // Returns true if a button was clicked
   int GetControlPanelHeight() const;  // Dynamic height based on font size
+  
+ public:
+  // Set translation text
+  void SetTranslationText(const std::wstring& text);
+  
+  // Set show translation state
+  void SetShowTranslation(bool show);
+  
+  // Get show translation state
+  bool GetShowTranslation() const { return show_translation_; }
+  
+  // Set lyric duration (for calculating scroll speed)
+  void SetLyricDuration(DWORD duration_ms);
 };
 
 #endif  // RUNNER_DESKTOP_LYRIC_WINDOW_H_

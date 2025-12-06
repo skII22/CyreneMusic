@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'dart:io';
 import 'package:flutter_acrylic/flutter_acrylic.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +11,12 @@ import '../services/layout_preference_service.dart';
 enum ThemeFramework {
   material,
   fluent,
+}
+
+/// 移动端主题框架
+enum MobileThemeFramework {
+  material,
+  cupertino,
 }
 
 /// 预设主题色方案
@@ -54,17 +61,32 @@ class ThemeManager extends ChangeNotifier {
   bool _followSystemColor = true; // 默认跟随系统主题色
   Color? _systemColor; // 系统主题色缓存
   ThemeFramework _themeFramework = ThemeFramework.material; // 默认使用 Material 3
+  MobileThemeFramework _mobileThemeFramework = MobileThemeFramework.cupertino; // 移动端默认使用 iOS 风格
   WindowEffect _windowEffect = WindowEffect.disabled; // 窗口材质效果
   bool _isApplyingWindowEffect = false; // 防止并发应用导致插件内部状态错误
+  bool _isWindows11OrLater = false; // 是否为 Windows 11 或更高版本
 
+  /// iOS 默认蓝色
+  static const Color iosBlue = Color(0xFF007AFF);
+  
   ThemeMode get themeMode => _themeMode;
   Color get seedColor => _seedColor;
   bool get followSystemColor => _followSystemColor;
   Color? get systemColor => _systemColor;
   ThemeFramework get themeFramework => _themeFramework;
+  MobileThemeFramework get mobileThemeFramework => _mobileThemeFramework;
   bool get isMaterialFramework => _themeFramework == ThemeFramework.material;
   bool get isFluentFramework => _themeFramework == ThemeFramework.fluent;
+  bool get isCupertinoFramework => _mobileThemeFramework == MobileThemeFramework.cupertino;
   WindowEffect get windowEffect => _windowEffect;
+  
+  /// 获取有效的主题色（Cupertino 模式下固定返回 iOS 蓝色）
+  Color get effectiveSeedColor {
+    if ((Platform.isIOS || Platform.isAndroid) && isCupertinoFramework) {
+      return iosBlue;
+    }
+    return _seedColor;
+  }
 
   bool get isDarkMode => _themeMode == ThemeMode.dark;
 
@@ -85,6 +107,31 @@ class ThemeManager extends ChangeNotifier {
       scaffoldBackgroundColor: useTransparent ? fluent.Colors.transparent : null,
       navigationPaneTheme: fluent.NavigationPaneThemeData(
         backgroundColor: useTransparent ? fluent.Colors.transparent : null,
+      ),
+    );
+  }
+
+  /// 构建 Cupertino 主题数据
+  CupertinoThemeData buildCupertinoThemeData(Brightness brightness) {
+    final isLight = brightness == Brightness.light;
+    // Cupertino 模式下固定使用 iOS 蓝色
+    const primaryColor = iosBlue;
+    
+    return CupertinoThemeData(
+      brightness: brightness,
+      primaryColor: primaryColor,
+      primaryContrastingColor: isLight ? Colors.white : Colors.black,
+      barBackgroundColor: isLight 
+          ? CupertinoColors.systemGroupedBackground
+          : const Color(0xFF1C1C1E),
+      scaffoldBackgroundColor: isLight 
+          ? CupertinoColors.systemGroupedBackground
+          : CupertinoColors.black,
+      textTheme: CupertinoTextThemeData(
+        primaryColor: primaryColor,
+        textStyle: TextStyle(
+          color: isLight ? CupertinoColors.black : CupertinoColors.white,
+        ),
       ),
     );
   }
@@ -347,14 +394,34 @@ class ThemeManager extends ChangeNotifier {
         _themeFramework = Platform.isWindows ? ThemeFramework.fluent : ThemeFramework.material;
       }
 
-      // 加载窗口材质（默认：Windows 11 设为 Mica，否则 Disabled）
+      // 加载移动端主题框架（默认为 Cupertino iOS 风格）
+      final savedMobileFrameworkIndex = prefs.getInt('mobile_theme_framework');
+      if (savedMobileFrameworkIndex != null && savedMobileFrameworkIndex >= 0 && savedMobileFrameworkIndex < MobileThemeFramework.values.length) {
+        _mobileThemeFramework = MobileThemeFramework.values[savedMobileFrameworkIndex];
+      } else {
+        _mobileThemeFramework = MobileThemeFramework.cupertino;
+      }
+
+      // 检测 Windows 版本
+      if (Platform.isWindows) {
+        _isWindows11OrLater = await _checkIsWindows11OrLater();
+        print('🖥️ [ThemeManager] Windows 11 或更高版本: $_isWindows11OrLater');
+      }
+
+      // 加载窗口材质（默认：Windows 11 设为 Mica，Win10 及以下设为 Disabled）
       final windowEffectIndex = prefs.getInt('window_effect');
       if (windowEffectIndex != null && windowEffectIndex >= 0 && windowEffectIndex < WindowEffect.values.length) {
         _windowEffect = WindowEffect.values[windowEffectIndex];
+        // 如果用户之前设置了 Mica 但当前系统不支持，自动回退到 disabled
+        if (_windowEffect == WindowEffect.mica && !_isWindows11OrLater) {
+          print('⚠️ [ThemeManager] 当前系统不支持 Mica，自动回退到 disabled');
+          _windowEffect = WindowEffect.disabled;
+          await prefs.setInt('window_effect', _windowEffect.index);
+        }
       } else {
         if (Platform.isWindows) {
-          // 假定 Windows 11 优先使用 Mica；若不支持，运行时应用时会回退
-          _windowEffect = WindowEffect.mica;
+          // 根据 Windows 版本选择默认效果
+          _windowEffect = _isWindows11OrLater ? WindowEffect.mica : WindowEffect.disabled;
         } else {
           _windowEffect = WindowEffect.disabled;
         }
@@ -364,6 +431,7 @@ class ThemeManager extends ChangeNotifier {
       print('🎨 [ThemeManager] 跟随系统主题色: $_followSystemColor');
       print('🎨 [ThemeManager] 主题色: 0x${_seedColor.value.toRadixString(16)}');
       print('🎨 [ThemeManager] 桌面主题框架: ${_themeFramework.name}');
+      print('🎨 [ThemeManager] 移动端主题框架: ${_mobileThemeFramework.name}');
       // 应用一次窗口材质并在帧后通知，避免在布局阶段触发重建
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         await _applyWindowEffectInternal();
@@ -415,6 +483,17 @@ class ThemeManager extends ChangeNotifier {
       print('💾 [ThemeManager] 桌面主题框架已保存: ${_themeFramework.name}');
     } catch (e) {
       print('❌ [ThemeManager] 保存桌面主题框架失败: $e');
+    }
+  }
+
+  /// 保存移动端主题框架到本地
+  Future<void> _saveMobileThemeFramework() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('mobile_theme_framework', _mobileThemeFramework.index);
+      print('💾 [ThemeManager] 移动端主题框架已保存: ${_mobileThemeFramework.name}');
+    } catch (e) {
+      print('❌ [ThemeManager] 保存移动端主题框架失败: $e');
     }
   }
 
@@ -496,6 +575,15 @@ class ThemeManager extends ChangeNotifier {
     }
   }
 
+  /// 设置移动端主题框架
+  void setMobileThemeFramework(MobileThemeFramework framework) {
+    if (_mobileThemeFramework != framework) {
+      _mobileThemeFramework = framework;
+      _saveMobileThemeFramework();
+      notifyListeners();
+    }
+  }
+
   /// 保存窗口材质到本地
   Future<void> _saveWindowEffect() async {
     try {
@@ -509,8 +597,15 @@ class ThemeManager extends ChangeNotifier {
 
   /// 设置窗口材质
   Future<void> setWindowEffect(WindowEffect effect) async {
-    if (_windowEffect != effect) {
-      _windowEffect = effect;
+    // 如果用户尝试在不支持的系统上设置 Mica，自动回退到 disabled
+    var effectToApply = effect;
+    if (effect == WindowEffect.mica && !_isWindows11OrLater) {
+      print('⚠️ [ThemeManager] 当前系统不支持 Mica，将使用 disabled');
+      effectToApply = WindowEffect.disabled;
+    }
+    
+    if (_windowEffect != effectToApply) {
+      _windowEffect = effectToApply;
       await _saveWindowEffect();
       // 在当前帧结束后应用，避免在复杂布局（如 SliverGrid）布局阶段触发重建
       WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -519,6 +614,9 @@ class ThemeManager extends ChangeNotifier {
       });
     }
   }
+  
+  /// 检查当前系统是否支持 Mica 效果
+  bool get isMicaSupported => _isWindows11OrLater;
 
   /// 应用窗口材质（仅 Windows）
   Future<void> _applyWindowEffectInternal() async {
@@ -556,6 +654,66 @@ class ThemeManager extends ChangeNotifier {
       } catch (_) {}
     } finally {
       _isApplyingWindowEffect = false;
+    }
+  }
+
+  /// 检测是否为 Windows 11 或更高版本
+  /// Windows 11 的内部版本号从 22000 开始
+  Future<bool> _checkIsWindows11OrLater() async {
+    if (!Platform.isWindows) return false;
+    
+    try {
+      // 使用 Platform.operatingSystemVersion 获取版本信息
+      // 格式可能是:
+      // - "Windows 10 Version 2009 (OS Build 19045.0)"
+      // - "Windows 11 Version 23H2 (OS Build 22631.0)"
+      // - "10.0.26200" (简化格式)
+      final version = Platform.operatingSystemVersion;
+      print('🖥️ [ThemeManager] 操作系统版本字符串: $version');
+      
+      // 尝试多种格式提取版本号
+      int? buildNumber;
+      
+      // 格式1: "OS Build XXXXX" 或 "Build XXXXX"
+      var match = RegExp(r'Build\s+(\d+)', caseSensitive: false).firstMatch(version);
+      if (match != null) {
+        buildNumber = int.tryParse(match.group(1) ?? '0');
+      }
+      
+      // 格式2: "10.0.XXXXX"
+      if (buildNumber == null) {
+        match = RegExp(r'10\.0\.(\d+)').firstMatch(version);
+        if (match != null) {
+          buildNumber = int.tryParse(match.group(1) ?? '0');
+        }
+      }
+      
+      // 格式3: 直接查找5位数字（可能是版本号）
+      if (buildNumber == null) {
+        match = RegExp(r'\b(\d{5})\b').firstMatch(version);
+        if (match != null) {
+          buildNumber = int.tryParse(match.group(1) ?? '0');
+        }
+      }
+      
+      if (buildNumber != null && buildNumber > 0) {
+        // Windows 11 的内部版本号从 22000 开始
+        final isWin11 = buildNumber >= 22000;
+        print('🖥️ [ThemeManager] Windows 内部版本号: $buildNumber, 是否为 Win11+: $isWin11');
+        return isWin11;
+      }
+      
+      // 如果无法解析版本号，检查是否包含 "Windows 11"
+      if (version.contains('Windows 11')) {
+        print('🖥️ [ThemeManager] 检测到 Windows 11 字符串');
+        return true;
+      }
+      
+      print('⚠️ [ThemeManager] 无法解析 Windows 版本号，默认为非 Win11');
+      return false;
+    } catch (e) {
+      print('⚠️ [ThemeManager] 检测 Windows 版本失败: $e');
+      return false;
     }
   }
 

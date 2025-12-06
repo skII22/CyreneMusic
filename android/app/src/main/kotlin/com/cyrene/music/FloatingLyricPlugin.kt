@@ -426,13 +426,15 @@ class FloatingLyricPlugin: FlutterPlugin, MethodCallHandler {
     
     /// 更新播放位置（从Flutter层定期接收）
     private fun updatePlaybackPosition(position: Long) {
-        currentPosition = position
-        // 🔥 记录同步时间点，用于后台自动推进
+        // 🔥 关键修复：记录同步时间点，用于后台自动推进
+        // 这样原生层可以在两次 Flutter 同步之间自动推进位置
         lastSyncTime = System.currentTimeMillis()
         lastSyncPosition = position
+        currentPosition = position
         
         // 收到新位置后立即更新歌词显示，确保同步
-        if (isPlaying && isFloatingWindowVisible) {
+        // 注意：这里不需要检查 isPlaying，因为 Flutter 层只在播放时才会同步位置
+        if (isFloatingWindowVisible) {
             updateCurrentLyric()
         }
     }
