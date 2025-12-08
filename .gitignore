@@ -43,7 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-/website/
 /kugouapi_github/
 /data/
 /musicapi/
@@ -51,3 +50,4 @@ app.*.map.json
 /api-enhanced/
 /backend/
 /installer/
+/website/

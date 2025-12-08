@@ -79,30 +79,35 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
       body: Stack(
         children: [
           // 背景装饰渐变（与对话框样式一致，改为全屏）
+          // 使用 IgnorePointer 确保不拦截触摸事件（修复 WSA 上点击无响应的问题）
           Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.topRight,
-                  radius: 1.5,
-                  colors: [
-                    colorScheme.primaryContainer.withOpacity(0.15),
-                    Colors.transparent,
-                  ],
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.topRight,
+                    radius: 1.5,
+                    colors: [
+                      colorScheme.primaryContainer.withOpacity(0.15),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
           Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.bottomLeft,
-                  radius: 1.5,
-                  colors: [
-                    colorScheme.secondaryContainer.withOpacity(0.12),
-                    Colors.transparent,
-                  ],
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.bottomLeft,
+                    radius: 1.5,
+                    colors: [
+                      colorScheme.secondaryContainer.withOpacity(0.12),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
               ),
             ),
