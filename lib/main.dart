@@ -576,3 +576,91 @@ class _WindowsRoundedContainerState extends State<_WindowsRoundedContainer> with
     );
   }
 }
+
+/// 显示音源未配置对话框
+void showAudioSourceNotConfiguredDialog(BuildContext context) {
+  final themeManager = ThemeManager();
+  final isFluent = Platform.isWindows && themeManager.isFluentFramework;
+  final isCupertino = (Platform.isIOS || Platform.isAndroid) && themeManager.isCupertinoFramework;
+
+  if (isFluent) {
+    fluent.showDialog(
+      context: context,
+      builder: (context) {
+        return fluent.ContentDialog(
+          title: const Text('音源失效'),
+          content: const Text('当前音源配置似乎已失效或无法连接，请重新配置音源。'),
+          actions: [
+            fluent.Button(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            fluent.FilledButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AudioSourceSettings()),
+                );
+              },
+              child: const Text('去配置'),
+            ),
+          ],
+        );
+      },
+    );
+  } else if (isCupertino) {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) {
+        return CupertinoAlertDialog(
+          title: const Text('音源失效'),
+          content: const Text('当前音源配置似乎已失效或无法连接，请重新配置音源。'),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AudioSourceSettings()),
+                );
+              },
+              child: const Text('去配置'),
+            ),
+          ],
+        );
+      },
+    );
+  } else {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('音源失效'),
+          content: const Text('当前音源配置似乎已失效或无法连接，请重新配置音源。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AudioSourceSettings()),
+                );
+              },
+              child: const Text('去配置'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
