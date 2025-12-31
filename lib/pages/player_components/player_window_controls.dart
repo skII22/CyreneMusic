@@ -365,6 +365,45 @@ class _MoreMenuButtonState extends State<_MoreMenuButton> {
                   _showFontPicker(context);
                 },
               ),
+
+              // 歌词对齐 (新增)
+              _buildMenuItem(
+                icon: lyricStyle.currentAlignment == LyricAlignment.center 
+                    ? Icons.format_align_center_rounded 
+                    : Icons.vertical_align_top_rounded,
+                label: '歌词对齐',
+                subtitle: lyricStyle.currentAlignment == LyricAlignment.center 
+                    ? '居中对齐' 
+                    : '顶部对齐',
+                iconColor: Colors.teal[300],
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.teal.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    lyricStyle.currentAlignment == LyricAlignment.center ? '居中' : '顶部',
+                    style: TextStyle(
+                      color: Colors.teal[300],
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'Microsoft YaHei',
+                    ),
+                  ),
+                ),
+                onTap: () {
+                  final newAlignment = lyricStyle.currentAlignment == LyricAlignment.center 
+                      ? LyricAlignment.top 
+                      : LyricAlignment.center;
+                  lyricStyle.setAlignment(newAlignment);
+                  _overlayEntry?.markNeedsBuild();
+                },
+              ),
               
               _buildSectionDivider(),
               

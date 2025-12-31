@@ -1118,7 +1118,7 @@ class _AppleMusicSlider extends StatefulWidget {
     this.min = 0.0,
     this.max = 1.0,
     this.activeColor = Colors.white,
-    this.inactiveColor = const Color(0x33FFFFFF), // ~20% white
+    this.inactiveColor = const Color(0x1FFFFFFF), // 约 12% 不透明度
   });
 
   @override
@@ -1163,19 +1163,23 @@ class _AppleMusicSliderState extends State<_AppleMusicSlider> with SingleTickerP
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, child) {
-          // 悬停时，active track 颜色变为纯白，否则略带透明
+          // 非悬停时，active track 颜色变得非常淡 (约 45%)，背景轨道则保持极致透明
           final currentActiveColor = _isHovering 
-              ? widget.activeColor 
-              : widget.activeColor.withOpacity(0.85);
+              ? widget.activeColor.withOpacity(0.8) 
+              : widget.activeColor.withOpacity(0.45);
+              
+          final currentInactiveColor = _isHovering
+              ? Colors.white.withOpacity(0.3)
+              : widget.inactiveColor; // 默认即为 12%
 
           return SliderTheme(
             data: SliderThemeData(
-              trackHeight: 3, 
+              trackHeight: 6, 
               trackShape: const RoundedRectSliderTrackShape(),
               thumbShape: _AppleMusicThumbShape(scale: _thumbScaleAnimation.value),
               overlayShape: SliderComponentShape.noOverlay,
               activeTrackColor: currentActiveColor,
-              inactiveTrackColor: widget.inactiveColor,
+              inactiveTrackColor: currentInactiveColor,
             ),
             child: SizedBox(
                height: 20, // 增加热区高度方便点击
