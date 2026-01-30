@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/toast_utils.dart';
 
 /// 开发者模式服务
 class DeveloperModeService extends ChangeNotifier {
@@ -33,6 +34,16 @@ class DeveloperModeService extends ChangeNotifier {
 
   /// 处理设置按钮点击
   void onSettingsClicked() {
+    _handleTrigger();
+  }
+
+  /// 处理版本信息点击
+  void onVersionClicked() {
+    _handleTrigger();
+  }
+
+  /// 统一处理触发逻辑
+  void _handleTrigger() {
     final now = DateTime.now();
     
     // 如果距离上次点击超过2秒，重置计数
@@ -43,12 +54,24 @@ class DeveloperModeService extends ChangeNotifier {
     _lastClickTime = now;
     _settingsClickCount++;
     
-    print('🔧 [DeveloperMode] 设置按钮点击次数: $_settingsClickCount');
+    print('🔧 [DeveloperMode] 触发按钮点击次数: $_settingsClickCount');
     
+    if (_isDeveloperMode) {
+      // 如果已经开启，点击5次提示（类似于 Android 逻辑）
+      if (_settingsClickCount >= 5) {
+        ToastUtils.show('您已处于开发者模式');
+        _settingsClickCount = 0;
+      }
+      return;
+    }
+
     // 连续点击5次进入开发者模式
-    if (_settingsClickCount >= 5 && !_isDeveloperMode) {
+    if (_settingsClickCount >= 5) {
       _enableDeveloperMode();
       _settingsClickCount = 0;
+    } else if (_settingsClickCount >= 2) {
+      // 从第2次点击开始提示进度
+      ToastUtils.show('再点击 ${5 - _settingsClickCount} 次即可开启开发者模式');
     }
   }
 
@@ -57,6 +80,7 @@ class DeveloperModeService extends ChangeNotifier {
     _isDeveloperMode = true;
     await _saveDeveloperMode();
     addLog('🚀 开发者模式已启用');
+    ToastUtils.success('开发者模式已启用');
     notifyListeners();
     print('🚀 [DeveloperMode] 开发者模式已启用');
   }

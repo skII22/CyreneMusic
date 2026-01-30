@@ -318,94 +318,42 @@ class DailyRecommendDetailPage extends StatelessWidget {
   Widget _buildExpressiveHeader(ColorScheme cs) {
     final isDark = cs.brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            cs.primaryContainer.withOpacity(0.8),
-            cs.primaryContainer.withOpacity(0.4),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(28),
+        color: cs.surfaceContainerHigh.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-            color: cs.primary.withOpacity(isDark ? 0.2 : 0.12),
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 左侧日期显示
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [cs.primary, cs.primary.withOpacity(0.7)],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: cs.primary.withOpacity(0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${DateTime.now().day}',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w900,
-                      color: cs.onPrimary,
-                      height: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _getWeekdayName(DateTime.now().weekday),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: cs.onPrimary.withOpacity(0.9),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _buildExpressiveDateCard(cs),
           const SizedBox(width: 20),
-          // 右侧信息
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   '每日推荐',
                   style: TextStyle(
-                    fontSize: 26,
+                    fontSize: 24,
                     fontWeight: FontWeight.w900,
                     color: cs.onSurface,
                     letterSpacing: -0.5,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
                 Text(
                   '根据你的口味生成，每日6:00更新',
                   style: TextStyle(
-                    fontSize: 14,
-                    color: cs.onSurface.withOpacity(0.7),
+                    fontSize: 12,
+                    color: cs.onSurface.withOpacity(0.6),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -413,6 +361,54 @@ class DailyRecommendDetailPage extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 构建日期卡片
+  Widget _buildExpressiveDateCard(ColorScheme cs) {
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [cs.primary, cs.primary.withOpacity(0.7)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: cs.primary.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${DateTime.now().day}',
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
+                color: cs.onPrimary,
+                height: 1,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              _getWeekdayName(DateTime.now().weekday),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: cs.onPrimary.withOpacity(0.9),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
