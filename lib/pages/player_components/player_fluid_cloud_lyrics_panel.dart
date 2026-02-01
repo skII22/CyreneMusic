@@ -856,16 +856,38 @@ class _KaraokeTextState extends State<_KaraokeText> with SingleTickerProviderSta
     if (_duration.inMilliseconds == 0) _duration = const Duration(seconds: 3);
   }
 
+  Duration _lastSyncPlayerPos = Duration.zero;
+  Duration _lastSyncTickerElapsed = Duration.zero;
+
   void _onTick(Duration elapsed) {
     if (!mounted) return;
 
     final currentPos = PlayerService().position;
-    // 更新广播通知器
-    _positionNotifier.value = currentPos;
+    final isPlaying = PlayerService().isPlaying;
+
+    // --- 核心：进度外推 (Extrapolation) ---
+    // 如果播放器进度发生了变化，重置基准点
+    if (currentPos != _lastSyncPlayerPos) {
+      _lastSyncPlayerPos = currentPos;
+      _lastSyncTickerElapsed = elapsed;
+    }
+
+    Duration extrapolatedPos = currentPos;
+    if (isPlaying) {
+      // 根据上次同步后的时间流逝，外推当前进度
+      final timeSinceSync = elapsed - _lastSyncTickerElapsed;
+      // 限制外推范围，避免跳转导致的瞬间位置异常 (通常外推不超过 500ms)
+      if (timeSinceSync.inMilliseconds > 0 && timeSinceSync.inMilliseconds < 500) {
+        extrapolatedPos = currentPos + timeSinceSync;
+      }
+    }
+
+    // 更新广播通知器 (使用外推后的平滑进度)
+    _positionNotifier.value = extrapolatedPos;
 
     // 处理行级进度 (针对非逐字模式)
     if (!widget.lyric.hasWordByWord || widget.lyric.words == null) {
-      final elapsedFromStart = currentPos - widget.lyric.startTime;
+      final elapsedFromStart = extrapolatedPos - widget.lyric.startTime;
       final newProgress = (elapsedFromStart.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0);
 
       if ((newProgress - _lineProgress).abs() > 0.005) {

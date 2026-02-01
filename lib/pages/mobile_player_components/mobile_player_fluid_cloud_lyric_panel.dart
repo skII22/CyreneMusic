@@ -917,13 +917,32 @@ class _KaraokeTextState extends State<_KaraokeText> with SingleTickerProviderSta
     if (_duration.inMilliseconds == 0) _duration = const Duration(seconds: 3);
   }
 
+  Duration _lastSyncPlayerPos = Duration.zero;
+  Duration _lastSyncTickerElapsed = Duration.zero;
+
   void _onTick(Duration elapsed) {
     if (!mounted) return;
     final currentPos = PlayerService().position;
-    _positionNotifier.value = currentPos;
+    final isPlaying = PlayerService().isPlaying;
+
+    // --- 核心：进度外推 (Extrapolation) ---
+    if (currentPos != _lastSyncPlayerPos) {
+      _lastSyncPlayerPos = currentPos;
+      _lastSyncTickerElapsed = elapsed;
+    }
+
+    Duration extrapolatedPos = currentPos;
+    if (isPlaying) {
+      final timeSinceSync = elapsed - _lastSyncTickerElapsed;
+      if (timeSinceSync.inMilliseconds > 0 && timeSinceSync.inMilliseconds < 500) {
+        extrapolatedPos = currentPos + timeSinceSync;
+      }
+    }
+
+    _positionNotifier.value = extrapolatedPos;
 
     if (!widget.lyric.hasWordByWord || widget.lyric.words == null) {
-      final elapsedFromStart = currentPos - widget.lyric.startTime;
+      final elapsedFromStart = extrapolatedPos - widget.lyric.startTime;
       final newProgress = (elapsedFromStart.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0);
 
       if ((newProgress - _lineProgress).abs() > 0.005) {
@@ -996,18 +1015,15 @@ class _KaraokeTextState extends State<_KaraokeText> with SingleTickerProviderSta
     return Wrap(
       alignment: WrapAlignment.start,
       crossAxisAlignment: WrapCrossAlignment.center,
-      runSpacing: 2.0, 
+      runSpacing: 0.0, // 将间距归零，以抵消组件内部 Padding 增加带来的空隙
       children: List.generate(words.length, (index) {
         final word = words[index];
-        return ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: maxWidth),
-          child: _WordFillWidget(
-            key: ValueKey('${widget.index}_$index'),
-            text: word.text,
-            word: word,
-            style: style,
-            positionNotifier: _positionNotifier,
-          ),
+        return _WordFillWidget(
+          key: ValueKey('${widget.index}_$index'),
+          text: word.text,
+          word: word,
+          style: style,
+          positionNotifier: _positionNotifier, // 传递共享通知器
         );
       }),
     );
@@ -1080,39 +1096,57 @@ class _WordFillWidget extends StatefulWidget {
 }
 
 class _WordFillWidgetState extends State<_WordFillWidget> with TickerProviderStateMixin {
+  // 移除 _ticker，改用父级广播
   late AnimationController _floatController;
   late Animation<double> _floatOffset;
   double _progress = 0.0;
   bool? _isAsciiCached;
 
-  static const double fadeRatio = 0.3;
-  static const double maxFloatOffset = -3.0;
+  static const double maxFloatOffset = -2.0; 
 
   @override
   void initState() {
     super.initState();
-    _floatController = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
-    _floatOffset = Tween<double>(begin: 0.0, end: maxFloatOffset).animate(CurvedAnimation(parent: _floatController, curve: Curves.easeOutBack));
+    
+    _floatController = AnimationController(
+       vsync: this,
+       duration: const Duration(milliseconds: 1000), // Match HTML min duration (1s)
+    );
+    _floatOffset = Tween<double>(begin: 0.0, end: maxFloatOffset).animate(
+      CurvedAnimation(parent: _floatController, curve: Curves.easeOutCubic),
+    );
+
     _updateProgress(widget.positionNotifier.value); 
+    
+    // 监听父级进度广播
     widget.positionNotifier.addListener(_onPositionUpdate);
-    if (_progress >= 0.5) _floatController.value = 1.0;
+
+    // Initial check
+    if (_progress > 0.0) {
+      _floatController.forward();
+    }
   }
 
   void _onPositionUpdate() {
      if (!mounted) return;
      final oldProgress = _progress;
      _updateProgress(widget.positionNotifier.value);
-     const double threshold = 0.5;
-     if (_progress >= threshold && oldProgress < threshold) {
+
+     // Trigger float immediately when playback starts for this word
+     if (_progress > 0.001 && oldProgress <= 0.001) {
        _floatController.forward();
-     } else if (_progress < threshold && oldProgress >= threshold) {
+     } else if (_progress <= 0.001 && oldProgress > 0.001) {
        _floatController.reverse();
      }
+
+     // Redraw if progress changes significantly
      final isAscii = _isAsciiText();
      final thresholdVal = isAscii ? 0.001 : 0.005;
-     if ((oldProgress - _progress).abs() > thresholdVal || (_progress >= 1.0 && oldProgress < 1.0) || (_progress <= 0.0 && oldProgress > 0.0)) {
-       // 仅在进度发生显著变化时触发 UI 重绘
-       if (mounted) setState(() {});
+
+     if ((oldProgress - _progress).abs() > thresholdVal || 
+         (_progress >= 1.0 && oldProgress < 1.0) ||
+         (_progress <= 0.0 && oldProgress > 0.0)) {
+       setState(() {});
      }
   }
 
@@ -1124,18 +1158,32 @@ class _WordFillWidgetState extends State<_WordFillWidget> with TickerProviderSta
       widget.positionNotifier.addListener(_onPositionUpdate);
     }
     _updateProgress(widget.positionNotifier.value);
-    if (_progress >= 0.5) { if (!_floatController.isAnimating && _floatController.value < 1.0) _floatController.forward(); } 
-    else { if (!_floatController.isAnimating && _floatController.value > 0.0) _floatController.reverse(); }
+    
+    if (_progress > 0.001) {
+      if (!_floatController.isAnimating && _floatController.value < 1.0) {
+        _floatController.forward();
+      }
+    } else {
+      if (!_floatController.isAnimating && _floatController.value > 0.0) {
+        _floatController.reverse();
+      }
+    }
   }
 
   void _updateProgress(Duration currentPos) {
-    if (currentPos < widget.word.startTime) _progress = 0.0;
-    else if (currentPos >= widget.word.endTime) _progress = 1.0;
-    else {
+    if (currentPos < widget.word.startTime) {
+      _progress = 0.0;
+    } else if (currentPos >= widget.word.endTime) {
+      _progress = 1.0;
+    } else {
       final wordDuration = widget.word.duration.inMilliseconds;
-      _progress = (wordDuration <= 0) ? 1.0 : (currentPos - widget.word.startTime).inMilliseconds / wordDuration;
+      if (wordDuration <= 0) {
+         _progress = 1.0;
+      } else {
+         final wordElapsed = currentPos - widget.word.startTime;
+         _progress = (wordElapsed.inMilliseconds / wordDuration).clamp(0.0, 1.0);
+      }
     }
-    _progress = _progress.clamp(0.0, 1.0);
   }
 
   @override
@@ -1147,21 +1195,32 @@ class _WordFillWidgetState extends State<_WordFillWidget> with TickerProviderSta
 
   bool _isAsciiText() {
     if (_isAsciiCached != null) return _isAsciiCached!;
-    if (widget.text.isEmpty) return _isAsciiCached = false;
+    if (widget.text.isEmpty) {
+      _isAsciiCached = false;
+      return false;
+    }
     int asciiCount = 0;
     for (final char in widget.text.runes) {
       if ((char >= 65 && char <= 90) || (char >= 97 && char <= 122)) asciiCount++;
     }
-    return _isAsciiCached = asciiCount > widget.text.length / 2;
+    _isAsciiCached = asciiCount > widget.text.length / 2;
+    return _isAsciiCached!;
   }
+
 
   @override
   Widget build(BuildContext context) {
-    final useLetterAnimation = _isAsciiText() && widget.text.length > 1;
+    final double effectiveY = _floatOffset.value;
+          
     return RepaintBoundary(
       child: AnimatedBuilder(
         animation: _floatOffset,
-        builder: (context, child) => Transform.translate(offset: Offset(0, useLetterAnimation ? 0.0 : _floatOffset.value), child: child),
+        builder: (context, child) {
+          return Transform.translate(
+            offset: Offset(0, effectiveY),
+            child: child, 
+          );
+        },
         child: _buildInner(),
       ),
     );
@@ -1172,55 +1231,78 @@ class _WordFillWidgetState extends State<_WordFillWidget> with TickerProviderSta
     return _buildWholeWordEffect();
   }
   
+  // 使用固定像素宽度的渐变，而不是相对比例，确保不同长度单词的过渡效果一致
+  ShaderCallback _createGradientShader() {
+      return (bounds) {
+        List<Color> gradientColors;
+        List<double> gradientStops;
+        
+        if (_progress <= 0.0) {
+          gradientColors = const [Color(0x99FFFFFF), Color(0x99FFFFFF)];
+          gradientStops = const [0.0, 1.0];
+        } else if (_progress >= 1.0) {
+          gradientColors = const [Colors.white, Colors.white];
+          gradientStops = const [0.0, 1.0];
+        } else {
+          gradientColors = const [
+            Colors.white,                  
+            Colors.white,                  
+            Color(0x99FFFFFF),             
+            Color(0x99FFFFFF),             
+          ];
+          
+          final double currentX = bounds.width * _progress;
+          // 固定渐变区宽度 (像素)，例如 64px，这样短单词会被更柔和地覆盖，长单词也不会感觉突兀
+          const double fadeWidth = 64.0; 
+          
+          final double fadeStart = currentX / bounds.width;
+          final double fadeEnd = (currentX + fadeWidth) / bounds.width;
+          
+          gradientStops = [
+            0.0,
+            fadeStart.clamp(0.0, 1.0),    
+            fadeEnd.clamp(0.0, 1.0),      
+            1.0,
+          ];
+        }
+
+        return LinearGradient(
+          colors: gradientColors,
+          stops: gradientStops,
+        ).createShader(bounds);
+      };
+  }
+  
   Widget _buildWholeWordEffect() {
-    List<Color> colors; List<double> stops;
-    if (_progress <= 0.0) { colors = [const Color(0x99FFFFFF), const Color(0x99FFFFFF)]; stops = [0.0, 1.0]; }
-    else if (_progress >= 1.0) { colors = [Colors.white, Colors.white]; stops = [0.0, 1.0]; }
-    else {
-      const double glowW = 0.05;
-      colors = [Colors.white.withOpacity(0.9), Colors.white, Colors.white, const Color(0x99FFFFFF), const Color(0x99FFFFFF)];
-      stops = [0.0, (_progress - glowW).clamp(0.0, 1.0), _progress, (_progress + fadeRatio).clamp(0.0, 1.0), 1.0];
-    }
     return ShaderMask(
-      shaderCallback: (bounds) => LinearGradient(colors: colors, stops: stops).createShader(bounds),
+      shaderCallback: _createGradientShader(),
       blendMode: BlendMode.srcIn,
-      child: Padding(padding: const EdgeInsets.symmetric(vertical: 3.0), child: Text(widget.text, style: widget.style.copyWith(color: Colors.white))),
+      child: Padding(
+        padding: const EdgeInsets.only(top: 2.0, bottom: 10.0),
+        child: Text(widget.text, style: widget.style.copyWith(color: Colors.white)),
+      ),
     );
   }
 
   Widget _buildLetterByLetterEffect() {
     final letters = widget.text.split('');
-    const double rippleW = 1.2; const double maxLetterFloat = -4.0;
-    // 🔧 关键修复：将 Row 切换为 Wrap，允许长单词在内部折行
-    return Wrap(
-      alignment: WrapAlignment.start,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: List.generate(letters.length, (index) {
-        final baseW = 1.0 / letters.length;
-        final fStart = index * baseW; final fEnd = (index + 1) * baseW;
-        final fProgress = ((_progress - fStart) / (fEnd - fStart)).clamp(0.0, 1.0);
-        double lOffset = 0.0;
-        if (_progress >= fEnd) lOffset = maxLetterFloat;
-        else if (_progress > max(0.001, fStart - (baseW * rippleW))) {
-           lOffset = Curves.easeOut.transform(((_progress - max(0.001, fStart - (baseW * rippleW))) / (fEnd - max(0.001, fStart - (baseW * rippleW)))).clamp(0.0, 1.0)) * maxLetterFloat;
-        }
-        List<Color> colors; List<double> stops;
-        if (fProgress <= 0.0) { colors = [const Color(0x99FFFFFF), const Color(0x99FFFFFF)]; stops = [0.0, 1.0]; }
-        else if (fProgress >= 1.0) { colors = [Colors.white, Colors.white]; stops = [0.0, 1.0]; }
-        else {
-          const double gW = 0.15;
-          colors = [Colors.white.withOpacity(0.9), Colors.white, Colors.white, const Color(0x99FFFFFF), const Color(0x99FFFFFF)];
-          stops = [0.0, (fProgress - gW).clamp(0.0, 1.0), fProgress, (fProgress + fadeRatio).clamp(0.0, 1.0), 1.0];
-        }
-        return Transform.translate(
-          offset: Offset(0, lOffset),
-          child: ShaderMask(
-            shaderCallback: (bounds) => LinearGradient(colors: colors, stops: stops).createShader(bounds),
-            blendMode: BlendMode.srcIn,
-            child: Padding(padding: const EdgeInsets.symmetric(vertical: 4.0), child: Text(letters[index], style: widget.style.copyWith(color: Colors.white))),
-          ),
-        );
-      }),
+    final letterCount = letters.length;
+    
+    return ShaderMask(
+      shaderCallback: _createGradientShader(),
+      blendMode: BlendMode.srcIn,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: List.generate(letterCount, (index) {
+          final letter = letters[index];
+          return Padding(
+            padding: const EdgeInsets.only(top: 2.0, bottom: 10.0),
+            child: Text(letter, style: widget.style.copyWith(color: Colors.white)),
+          );
+        }),
+      ),
     );
   }
 }

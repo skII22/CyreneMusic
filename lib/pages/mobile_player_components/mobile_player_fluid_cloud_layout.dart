@@ -16,6 +16,10 @@ import 'mobile_player_settings_sheet.dart';
 import 'dart:async';
 import 'mobile_player_background.dart';
 import '../../services/auto_collapse_service.dart';
+import '../../services/audio_quality_service.dart';
+import '../../services/audio_source_service.dart';
+import '../../utils/toast_utils.dart';
+import '../../models/song_detail.dart';
 
 /// 移动端流体云播放器布局
 /// 参考 HTML 设计：统一在同一页面显示歌曲信息、歌词、控制按钮
@@ -744,7 +748,7 @@ class _MobilePlayerFluidCloudLayoutState extends State<MobilePlayerFluidCloudLay
            builder: (context, _) => Text(
              '${_formatDurationCompact(player.positionNotifier.value)}/${_formatDurationCompact(player.duration)}',
              style: TextStyle(
-               color: Colors.white.withOpacity(0.6),
+               color: Colors.white.withValues(alpha: 0.6),
                fontSize: 16, // 加大字体
                fontWeight: FontWeight.bold,
                fontFamily: 'Consolas',
@@ -752,6 +756,9 @@ class _MobilePlayerFluidCloudLayoutState extends State<MobilePlayerFluidCloudLay
              ),
            ),
          ),
+
+         const SizedBox(width: 12),
+         _buildQualityButton(context),
 
          // 控制按钮行 - 居中且使用 iOS 粗图标
          Expanded(
@@ -995,13 +1002,17 @@ class _MobilePlayerFluidCloudLayoutState extends State<MobilePlayerFluidCloudLay
                       builder: (context, _) => Text(
                         _formatDuration(player.positionNotifier.value),
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.6),
+                          color: Colors.white.withValues(alpha: 0.6),
                           fontSize: 13, 
                           fontWeight: FontWeight.bold,
                           fontFamily: 'Consolas',
                         ),
                       ),
                     ),
+                    
+                    // --- 核心：音质切换按钮 ---
+                    _buildQualityButton(context),
+
                     AnimatedBuilder(
                       animation: player,
                       builder: (context, _) => Text(
@@ -1147,6 +1158,112 @@ class _MobilePlayerFluidCloudLayoutState extends State<MobilePlayerFluidCloudLay
     final minutes = duration.inMinutes;
     final seconds = duration.inSeconds % 60;
     return '${minutes.toString().padLeft(1, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  /// 构建音质选择按钮
+  Widget _buildQualityButton(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AudioQualityService(),
+      builder: (context, _) {
+        final qualityService = AudioQualityService();
+        final label = qualityService.getShortLabel();
+        
+        return GestureDetector(
+          onTap: () => _showQualitySelectionSheet(context),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 9.5,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 显示音质选择底部菜单
+  void _showQualitySelectionSheet(BuildContext context) {
+    final qualityService = AudioQualityService();
+    final sourceService = AudioSourceService();
+    final supportedQualities = sourceService.activeSource != null
+        ? qualityService.getSupportedQualities(sourceService.sourceType)
+        : [AudioQuality.standard, AudioQuality.exhigh, AudioQuality.lossless];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Colors.grey[900]?.withValues(alpha: 0.95),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[800],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Text(
+                  '选择播放音质',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              ...supportedQualities.map((quality) {
+                final isSelected = qualityService.currentQuality == quality;
+                return ListTile(
+                  title: Text(
+                    qualityService.getQualityName(quality),
+                    style: TextStyle(
+                      color: isSelected ? Colors.blueAccent : Colors.white,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                  subtitle: Text(
+                    qualityService.getQualityDescription(quality),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      fontSize: 12,
+                    ),
+                  ),
+                  trailing: isSelected 
+                      ? const Icon(Icons.check, color: Colors.blueAccent) 
+                      : null,
+                  onTap: () {
+                    qualityService.setQuality(quality);
+                    Navigator.pop(context);
+                    ToastUtils.success('音质已设置为 ${qualityService.getQualityName(quality)}，将在下次切换歌曲时生效');
+                  },
+                );
+              }),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   /// 构建封面图片（支持网络 URL 和本地文件路径）

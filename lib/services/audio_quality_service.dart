@@ -205,6 +205,25 @@ class AudioQualityService extends ChangeNotifier {
     }
   }
 
+  /// 获取音质短标签（技术标识，如 128kbps, 320, flac, Hi-Res）
+  String getShortLabel([AudioQuality? quality]) {
+    final q = quality ?? _currentQuality;
+    switch (q) {
+      case AudioQuality.standard:
+        return '128kbps';
+      case AudioQuality.exhigh:
+        return '320kbps';
+      case AudioQuality.lossless:
+        return 'flac';
+      case AudioQuality.hires:
+        return 'Hi-Res';
+      case AudioQuality.jymaster:
+        return 'Master';
+      default:
+        return '320';
+    }
+  }
+
   /// 获取音质描述
   String getQualityDescription([AudioQuality? quality]) {
     final q = quality ?? _currentQuality;
