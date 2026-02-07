@@ -396,10 +396,13 @@ class AudioSourceService extends ChangeNotifier {
   /// 获取音源描述 (兼容旧版 API)
   String getSourceDescription() {
     if (!isConfigured) return '未配置';
-    if (activeSource!.type == AudioSourceType.lxmusic) {
-      return '${activeSource!.name} (v${activeSource!.version})';
+    final config = activeSource!;
+    if (config.type == AudioSourceType.lxmusic) {
+      return '${config.name} (v${config.version})';
+    } else if (config.type == AudioSourceType.omniparse) {
+      return '${config.name} (URL 已隐藏)';
     }
-    return activeSource!.url;
+    return config.url;
   }
 
   /// [Deprecated] Use addSource instead

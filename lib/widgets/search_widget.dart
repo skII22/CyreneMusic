@@ -15,6 +15,44 @@ import '../pages/auth/auth_page.dart';
 import '../utils/theme_manager.dart';
 import 'track_action_menu.dart';
 
+/// 平台配色映射 - 使用品牌相关色系的小球代替文字
+/// 用于规避直接显示平台名称的风险
+Color _getPlatformDotColor(String platformCode, Brightness brightness) {
+  switch (platformCode) {
+    case 'netease':
+      return const Color(0xFFE72D2D); // 红色
+    case 'qq':
+      return const Color(0xFF31C27C); // 绿色
+    case 'kugou':
+      return const Color(0xFF00A9FF); // 蓝色
+    case 'kuwo':
+      return const Color(0xFFFFD800); // 黄色
+    case 'apple':
+      return brightness == Brightness.dark ? Colors.white : Colors.black;
+    default:
+      return brightness == Brightness.dark ? Colors.white70 : Colors.black54;
+  }
+}
+
+/// 判断是否为平台tab（非歌手/歌曲等功能tab）
+bool _isPlatformTab(String tab) {
+  return tab == 'netease' || tab == 'qq' || tab == 'kugou' || 
+         tab == 'kuwo' || tab == 'apple' ||
+         tab.contains('网易云') || tab.contains('QQ') || tab.contains('酷狗') ||
+         tab.contains('酷我') || tab.contains('Apple');
+}
+
+/// 从显示名称获取平台代码
+String _getPlatformCodeFromLabel(String label) {
+  if (label.contains('网易云')) return 'netease';
+  if (label.contains('Apple')) return 'apple';
+  if (label.contains('QQ')) return 'qq';
+  if (label.contains('酷狗')) return 'kugou';
+  if (label.contains('酷我')) return 'kuwo';
+  return '';
+}
+
+
 /// 搜索组件（内嵌版本）
 class SearchWidget extends StatefulWidget {
   final VoidCallback onClose;
@@ -28,6 +66,7 @@ class SearchWidget extends StatefulWidget {
 
 
 /// Material Design Expressive 风格的 Tab 栏
+/// 平台tab使用彩色小球，功能tab（如歌手）保留文字
 class _SearchExpressiveTabs extends StatelessWidget {
   final List<String> tabs;
   final int currentIndex;
@@ -42,15 +81,15 @@ class _SearchExpressiveTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
     
     // 品牌配色映射
     Color getPlatformColor(String tab) {
-      if (tab.contains('网易云')) return const Color(0xFFE72D2D);
-      if (tab.contains('Apple')) return Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black;
-      if (tab.contains('QQ')) return const Color(0xFF31C27C);
-      if (tab.contains('酷狗')) return const Color(0xFF00A9FF);
-      if (tab.contains('酷我')) return const Color(0xFFFFD800);
-      if (tab.contains('歌手')) return cs.primary;
+      final code = _getPlatformCodeFromLabel(tab);
+      if (code.isNotEmpty) {
+        return _getPlatformDotColor(code, brightness);
+      }
+      // 非平台tab使用主题色
       return cs.primary;
     }
 
@@ -89,6 +128,7 @@ class _SearchExpressiveTabs extends StatelessWidget {
                 children: List.generate(count, (i) {
                   final selected = i == currentIndex;
                   final platformColor = getPlatformColor(tabs[i]);
+                  final isPlatform = _isPlatformTab(tabs[i]);
                   
                   return Expanded(
                     child: GestureDetector(
@@ -96,17 +136,37 @@ class _SearchExpressiveTabs extends StatelessWidget {
                       behavior: HitTestBehavior.opaque,
                       child: Container(
                         alignment: Alignment.center,
-                        child: AnimatedDefaultTextStyle(
-                          duration: const Duration(milliseconds: 250),
-                          curve: Curves.easeOutCubic,
-                          style: TextStyle(
-                            color: selected ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87) : cs.onSurface.withOpacity(0.5),
-                            fontSize: selected ? 19 : 15,
-                            fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
-                            letterSpacing: selected ? -0.2 : 0,
-                          ),
-                          child: Text(tabs[i]),
-                        ),
+                        child: isPlatform 
+                          // 平台tab：显示彩色小球
+                          ? AnimatedContainer(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeOutCubic,
+                              width: selected ? 20 : 14,
+                              height: selected ? 20 : 14,
+                              decoration: BoxDecoration(
+                                color: platformColor.withOpacity(selected ? 1.0 : 0.5),
+                                shape: BoxShape.circle,
+                                boxShadow: selected ? [
+                                  BoxShadow(
+                                    color: platformColor.withOpacity(0.4),
+                                    blurRadius: 8,
+                                    spreadRadius: 1,
+                                  ),
+                                ] : null,
+                              ),
+                            )
+                          // 功能tab（如歌手）：显示文字
+                          : AnimatedDefaultTextStyle(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeOutCubic,
+                              style: TextStyle(
+                                color: selected ? (brightness == Brightness.dark ? Colors.white : Colors.black87) : cs.onSurface.withOpacity(0.5),
+                                fontSize: selected ? 19 : 15,
+                                fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
+                                letterSpacing: selected ? -0.2 : 0,
+                              ),
+                              child: Text(tabs[i]),
+                            ),
                       ),
                     ),
                   );
@@ -119,6 +179,7 @@ class _SearchExpressiveTabs extends StatelessWidget {
     );
   }
 }
+
 
 /// Win11 风格的 Pivot Tabs（带平滑滑动指示器）
 class _FluentPivotTabs extends StatefulWidget {
@@ -242,7 +303,7 @@ class _FluentPivotTabsState extends State<_FluentPivotTabs> {
   }
 }
 
-/// Tab 标签文字组件
+/// Tab 标签组件 - 平台tab显示彩色小球，功能tab显示文字
 class _FluentPivotTabLabel extends StatelessWidget {
   final String label;
   final Color textColor;
@@ -258,6 +319,45 @@ class _FluentPivotTabLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final brightness = fluent.FluentTheme.of(context).brightness ?? Brightness.light;
+    final isPlatform = _isPlatformTab(label);
+    
+    if (isPlatform) {
+      // 平台tab：显示彩色小球
+      final platformCode = _getPlatformCodeFromLabel(label);
+      final dotColor = _getPlatformDotColor(platformCode, brightness);
+      
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: hoverBg,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
+            width: isSelected ? 16 : 12,
+            height: isSelected ? 16 : 12,
+            decoration: BoxDecoration(
+              color: dotColor.withOpacity(isSelected ? 1.0 : 0.5),
+              shape: BoxShape.circle,
+              boxShadow: isSelected ? [
+                BoxShadow(
+                  color: dotColor.withOpacity(0.35),
+                  blurRadius: 6,
+                  spreadRadius: 0.5,
+                ),
+              ] : null,
+            ),
+          ),
+        ),
+      );
+    }
+    
+    // 功能tab（如歌手）：显示文字
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
       curve: Curves.easeOutCubic,
@@ -282,6 +382,7 @@ class _FluentPivotTabLabel extends StatelessWidget {
     );
   }
 }
+
 
 /// 滑动指示器组件 - 通过测量文字宽度来计算位置
 class _FluentPivotIndicator extends StatelessWidget {
@@ -871,6 +972,7 @@ class _SearchWidgetState extends State<SearchWidget> {
     final tabs = isMergeEnabled 
         ? ['歌曲', '歌手'] 
         : ['网易云', 'Apple', 'QQ音乐', '酷狗', '酷我', '歌手'];
+    final brightness = isDark ? Brightness.dark : Brightness.light;
 
     return Column(
       children: [
@@ -884,11 +986,25 @@ class _SearchWidgetState extends State<SearchWidget> {
               children: {
                 for (int i = 0; i < tabs.length; i++)
                   i: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Text(
-                      tabs[i],
-                      style: const TextStyle(fontSize: 13),
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    child: _isPlatformTab(tabs[i])
+                      // 平台tab：显示彩色小球
+                      ? Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: _getPlatformDotColor(
+                              _getPlatformCodeFromLabel(tabs[i]),
+                              brightness,
+                            ),
+                            shape: BoxShape.circle,
+                          ),
+                        )
+                      // 功能tab：显示文字
+                      : Text(
+                          tabs[i],
+                          style: const TextStyle(fontSize: 13),
+                        ),
                   ),
               },
               onValueChanged: (value) {
@@ -896,6 +1012,7 @@ class _SearchWidgetState extends State<SearchWidget> {
                   _handleTabChanged(value);
                 }
               },
+
             ),
           ),
         ),

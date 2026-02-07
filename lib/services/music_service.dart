@@ -238,6 +238,8 @@ class MusicService extends ChangeNotifier {
 
       // OmniParse 格式（原有逻辑）
       final baseUrl = audioSourceService.baseUrl;
+      // 获取 OmniParse API Key
+      final omniParseApiKey = audioSourceService.activeSource?.apiKey ?? '';
       String url;
       http.Response response;
       
@@ -258,6 +260,7 @@ class MusicService extends ChangeNotifier {
             Uri.parse(url),
             headers: {
               'Content-Type': 'application/x-www-form-urlencoded',
+              if (omniParseApiKey.isNotEmpty) 'X-API-Key': omniParseApiKey,
             },
             body: requestBody,
           ).timeout(
@@ -299,6 +302,7 @@ class MusicService extends ChangeNotifier {
             Uri.parse(url),
             headers: {
               'Content-Type': 'application/json',
+              if (omniParseApiKey.isNotEmpty) 'X-API-Key': omniParseApiKey,
             },
           ).timeout(
             const Duration(seconds: 15),
@@ -345,6 +349,7 @@ class MusicService extends ChangeNotifier {
             headers: {
               'Content-Type': 'application/json',
               if (authToken != null) 'Authorization': 'Bearer $authToken',
+              if (omniParseApiKey.isNotEmpty) 'X-API-Key': omniParseApiKey,
             },
           ).timeout(
             const Duration(seconds: 15),
@@ -364,6 +369,7 @@ class MusicService extends ChangeNotifier {
             Uri.parse(url),
             headers: {
               'Content-Type': 'application/json',
+              if (omniParseApiKey.isNotEmpty) 'X-API-Key': omniParseApiKey,
             },
           ).timeout(
             const Duration(seconds: 15),
