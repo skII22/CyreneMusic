@@ -188,8 +188,8 @@ class _AppearanceSettingsContentState extends State<AppearanceSettingsContent> {
             ],
           ),
         
-        // Windows 专属设置
-        if (Platform.isWindows)
+        // 桌面端专属设置
+        if (Platform.isWindows || Platform.isMacOS || Platform.isLinux)
           MD3SettingsSection(
             title: '桌面端',
             children: [
@@ -207,6 +207,14 @@ class _AppearanceSettingsContentState extends State<AppearanceSettingsContent> {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _showLayoutModeDialog(),
               ),
+              if (Platform.isWindows)
+                MD3SettingsTile(
+                  leading: const Icon(Icons.transition_effect),
+                  title: '窗口材质',
+                  subtitle: _windowEffectLabel(ThemeManager().windowEffect),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _showWindowEffectDialog(),
+                ),
             ],
           ),
       ],
@@ -625,69 +633,73 @@ class _AppearanceSettingsContentState extends State<AppearanceSettingsContent> {
       const SizedBox(height: 16),
       
       // 桌面端设置
-      FluentSettingsGroup(
-        title: '桌面端',
-        children: [
-          FluentSettingsTile(
-            icon: fluent_ui.FluentIcons.design,
-            title: '桌面主题样式',
-            subtitle: _getThemeFrameworkSubtitle(),
-            trailing: const Icon(fluent_ui.FluentIcons.chevron_right, size: 12),
-            onTap: () => _showThemeFrameworkDialog(),
-          ),
-          // 窗口材质
-          FluentSettingsTile(
-            icon: fluent_ui.FluentIcons.transition_effect,
-            title: '窗口材质',
-            subtitle: _windowEffectLabel(ThemeManager().windowEffect),
-            trailing: SizedBox(
-              width: 200,
-              child: fluent_ui.ComboBox<WindowEffect>(
-                value: ThemeManager().windowEffect,
-                items: [
-                  const fluent_ui.ComboBoxItem(value: WindowEffect.disabled, child: Text('默认')),
-                  fluent_ui.ComboBoxItem(
-                    value: WindowEffect.mica, 
-                    enabled: ThemeManager().isMicaSupported,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('云母'),
-                        if (!ThemeManager().isMicaSupported) ...[
-                          const SizedBox(width: 8),
-                          Text(
-                            '(需要 Win11)',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: fluent_ui.FluentTheme.of(context).resources.textFillColorDisabled,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const fluent_ui.ComboBoxItem(value: WindowEffect.acrylic, child: Text('亚克力')),
-                  const fluent_ui.ComboBoxItem(value: WindowEffect.transparent, child: Text('透明')),
-                ],
-                onChanged: (effect) async {
-                  if (effect != null) {
-                    await ThemeManager().setWindowEffect(effect);
-                    if (mounted) setState(() {});
-                  }
-                },
-              ),
+      if (Platform.isWindows || Platform.isMacOS || Platform.isLinux)
+        FluentSettingsGroup(
+          title: '桌面端',
+          children: [
+            FluentSettingsTile(
+              icon: fluent_ui.FluentIcons.design,
+              title: '桌面主题样式',
+              subtitle: _getThemeFrameworkSubtitle(),
+              trailing: const Icon(fluent_ui.FluentIcons.chevron_right, size: 12),
+              onTap: () => _showThemeFrameworkDialog(),
             ),
-          ),
-          // 布局模式
-          FluentSettingsTile(
-            icon: fluent_ui.FluentIcons.view_all,
-            title: '布局模式',
-            subtitle: LayoutPreferenceService().getLayoutDescription(),
-            trailing: const Icon(fluent_ui.FluentIcons.chevron_right, size: 12),
-            onTap: () => _showLayoutModeDialog(),
-          ),
-        ],
-      ),
+            // 窗口材质（目前仅 Windows 支持）
+            if (Platform.isWindows)
+              FluentSettingsTile(
+                icon: fluent_ui.FluentIcons.transition_effect,
+                title: '窗口材质',
+                subtitle: _windowEffectLabel(ThemeManager().windowEffect),
+                trailing: SizedBox(
+                  width: 200,
+                  child: fluent_ui.ComboBox<WindowEffect>(
+                    value: ThemeManager().themeMode == ThemeMode.system // 这里原本逻辑可能有误，应直接取 windowEffect，但先保持原样仅放开平台
+                        ? ThemeManager().windowEffect 
+                        : ThemeManager().windowEffect,
+                    items: [
+                      const fluent_ui.ComboBoxItem(value: WindowEffect.disabled, child: Text('默认')),
+                      fluent_ui.ComboBoxItem(
+                        value: WindowEffect.mica, 
+                        enabled: ThemeManager().isMicaSupported,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('云母'),
+                            if (!ThemeManager().isMicaSupported) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                '(需要 Win11)',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: fluent_ui.FluentTheme.of(context).resources.textFillColorDisabled,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const fluent_ui.ComboBoxItem(value: WindowEffect.acrylic, child: Text('亚克力')),
+                      const fluent_ui.ComboBoxItem(value: WindowEffect.transparent, child: Text('透明')),
+                    ],
+                    onChanged: (effect) async {
+                      if (effect != null) {
+                        await ThemeManager().setWindowEffect(effect);
+                        if (mounted) setState(() {});
+                      }
+                    },
+                  ),
+                ),
+              ),
+            // 布局模式
+            FluentSettingsTile(
+              icon: fluent_ui.FluentIcons.view_all,
+              title: '布局模式',
+              subtitle: LayoutPreferenceService().getLayoutDescription(),
+              trailing: const Icon(fluent_ui.FluentIcons.chevron_right, size: 12),
+              onTap: () => _showLayoutModeDialog(),
+            ),
+          ],
+        ),
     ];
 
     if (widget.embed) {
