@@ -110,6 +110,7 @@ dependencies:
   media_kit: ^1.1.11
   media_kit_video: ^1.2.5
   media_kit_libs_video: ^1.0.7
+  media_kit_libs_linux: ^1.2.1
   mobile_scanner: ^7.1.4
   
   # Audio metadata reader for local music files
