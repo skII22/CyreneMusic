@@ -43,9 +43,10 @@ class _DesktopAppGateState extends State<DesktopAppGate> {
     final isConfigured = AudioSourceService().isConfigured;
     final isLoggedIn = AuthService().isLoggedIn;
     final isTermsAccepted = PersistentStorageService().getBool('terms_accepted') ?? false;
+    final isLocalMode = PersistentStorageService().enableLocalMode;
 
-    // 音源配置、登录以及协议确认都完成后，显示主布局
-    if (isConfigured && isLoggedIn && isTermsAccepted) {
+    // 音源配置、登录以及协议确认都完成后，显示主布局；或者开启了本地模式且已确认协议
+    if ((isConfigured && isLoggedIn && isTermsAccepted) || (isLocalMode && isTermsAccepted)) {
       return const FluentMainLayout();
     }
 
