@@ -17,8 +17,15 @@ class _LinuxDoWebViewLoginPageState extends State<LinuxDoWebViewLoginPage> {
   // OAuth 配置
   static const String _clientId = '92bIhRkScTeJvJkb3a6w69xX7RoO7wbB';
   static const String _redirectUri = 'http://127.0.0.1:40555/oauth/callback';
-  static const String _authUrl = 
-      'https://connect.linux.do/oauth2/authorize?response_type=code&client_id=$_clientId&redirect_uri=$_redirectUri&state=login';
+
+  String get _authUrl {
+    return Uri.https('connect.linux.do', '/oauth2/authorize', {
+      'response_type': 'code',
+      'client_id': _clientId,
+      'redirect_uri': _redirectUri,
+      'state': 'login',
+    }).toString();
+  }
 
   /// WebView 控制器
   InAppWebViewController? _webViewController;
@@ -149,7 +156,7 @@ class _LinuxDoWebViewLoginPageState extends State<LinuxDoWebViewLoginPage> {
         print('🔄 [LinuxDoWebView] 开始加载: $urlString');
         
         // 检查是否是回调 URL，如果是，立即处理并阻止后续加载
-        if (url != null && urlString.startsWith(_redirectUri)) {
+        if (_isOAuthCallback(url)) {
           _checkForCallback(urlString);
           // 停止当前加载，避免 WebView 尝试连接 127.0.0.1
           controller.stopLoading();
@@ -173,11 +180,10 @@ class _LinuxDoWebViewLoginPageState extends State<LinuxDoWebViewLoginPage> {
         }
       },
       onReceivedError: (controller, request, error) {
-        final url = request.url.toString();
         final errorDesc = error.description;
         
         // 忽略回调 URL 的错误（因为我们会拦截它）
-        if (url.startsWith(_redirectUri)) {
+        if (_isOAuthCallback(request.url)) {
           print('ℹ️ [LinuxDoWebView] 忽略回调 URL 的错误: $errorDesc');
           return;
         }
@@ -218,8 +224,7 @@ class _LinuxDoWebViewLoginPageState extends State<LinuxDoWebViewLoginPage> {
       },
       onReceivedHttpError: (controller, request, response) {
         // 忽略回调 URL 的 HTTP 错误
-        final url = request.url.toString();
-        if (url.startsWith(_redirectUri)) {
+        if (_isOAuthCallback(request.url)) {
           return;
         }
         
@@ -229,7 +234,7 @@ class _LinuxDoWebViewLoginPageState extends State<LinuxDoWebViewLoginPage> {
         final url = navigationAction.request.url?.toString() ?? '';
         
         // 检查是否是回调 URL
-        if (url.startsWith(_redirectUri)) {
+        if (_isOAuthCallback(navigationAction.request.url)) {
           _checkForCallback(url);
           // 阻止 WebView 继续加载回调 URL（因为本地服务器不存在）
           return NavigationActionPolicy.CANCEL;
@@ -244,35 +249,53 @@ class _LinuxDoWebViewLoginPageState extends State<LinuxDoWebViewLoginPage> {
   void _checkForCallback(String url) {
     if (_callbackHandled) return;
     
-    if (url.startsWith(_redirectUri)) {
+    final parsedUri = Uri.tryParse(url);
+    if (_isOAuthCallbackUri(parsedUri)) {
+      final uri = parsedUri!;
       print('🎯 [LinuxDoWebView] 检测到回调 URL: $url');
       
-      final uri = Uri.tryParse(url);
-      if (uri != null) {
-        final code = uri.queryParameters['code'];
-        final error = uri.queryParameters['error'];
+      final code = uri.queryParameters['code'];
+      final error = uri.queryParameters['error'];
+      
+      if (code != null && code.isNotEmpty) {
+        _callbackHandled = true;
+        print('✅ [LinuxDoWebView] 获取授权码成功: ${code.substring(0, 5)}...');
         
-        if (code != null && code.isNotEmpty) {
-          _callbackHandled = true;
-          print('✅ [LinuxDoWebView] 获取授权码成功: ${code.substring(0, 5)}...');
-          
-          // 返回授权码
-          if (mounted) {
-            Navigator.of(context).pop(code);
-          }
-        } else if (error != null) {
-          _callbackHandled = true;
-          final errorDesc = uri.queryParameters['error_description'] ?? error;
-          print('❌ [LinuxDoWebView] 授权失败: $errorDesc');
-          
-          if (mounted) {
-            setState(() {
-              _errorMessage = '授权失败: $errorDesc';
-            });
-          }
+        // 返回授权码
+        if (mounted) {
+          Navigator.of(context).pop(code);
+        }
+      } else if (error != null) {
+        _callbackHandled = true;
+        final errorDesc = uri.queryParameters['error_description'] ?? error;
+        print('❌ [LinuxDoWebView] 授权失败: $errorDesc');
+        
+        if (mounted) {
+          setState(() {
+            _errorMessage = '授权失败: $errorDesc';
+          });
         }
       }
     }
+  }
+
+  bool _isOAuthCallback(WebUri? url) {
+    if (url == null) return false;
+    final uri = Uri.tryParse(url.toString());
+    return _isOAuthCallbackUri(uri);
+  }
+
+  bool _isOAuthCallbackUri(Uri? uri) {
+    if (uri == null) return false;
+    final isLoopback = uri.host == '127.0.0.1' || uri.host == 'localhost';
+    final normalizedPath = uri.path.endsWith('/') && uri.path.length > 1
+        ? uri.path.substring(0, uri.path.length - 1)
+        : uri.path;
+
+    return uri.scheme == 'http' &&
+        isLoopback &&
+        uri.port == 40555 &&
+        normalizedPath == '/oauth/callback';
   }
 
   /// 重新加载页面

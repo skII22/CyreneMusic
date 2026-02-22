@@ -1097,8 +1097,8 @@ class _DesktopSetupPageState extends State<DesktopSetupPage> with WindowListener
     // 直接标记协议为已确认并跳到主界面
     final storage = PersistentStorageService();
     await storage.setBool('terms_accepted', true);
-    // 退出本地模式
-    await storage.setEnableLocalMode(false);
+    // 跳过配置时进入本地模式，避免再次回到登录引导
+    await storage.setEnableLocalMode(true);
     
     // 通知跳过 - 触发状态更新来进入主应用
     AudioSourceService().notifyListeners();

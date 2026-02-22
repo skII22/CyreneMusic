@@ -397,11 +397,41 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  Map<String, dynamic>? _tryDecodeJson(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  String _buildNonJsonErrorMessage(http.Response response, {String fallback = '请求失败'}) {
+    final body = response.body.trimLeft();
+    final contentType = response.headers['content-type'] ?? '';
+    final maybeHtml =
+        contentType.contains('text/html') ||
+        body.startsWith('<!DOCTYPE html') ||
+        body.startsWith('<html') ||
+        body.startsWith('<HTML');
+
+    if (maybeHtml) {
+      return '服务器返回了 HTML 页面（HTTP ${response.statusCode}），可能是后端路由/网关配置异常';
+    }
+    return '$fallback（HTTP ${response.statusCode}，响应不是 JSON）';
+  }
+
   /// Linux Do 授权登录
   Future<Map<String, dynamic>> loginWithLinuxDo() async {
     const clientId = '92bIhRkScTeJvJkb3a6w69xX7RoO7wbB';
     const redirectUri = 'http://127.0.0.1:40555/oauth/callback';
-    const authUrl = 'https://connect.linux.do/oauth2/authorize?response_type=code&client_id=$clientId&redirect_uri=$redirectUri&state=login';
+    final authUrl = Uri.https('connect.linux.do', '/oauth2/authorize', {
+      'response_type': 'code',
+      'client_id': clientId,
+      'redirect_uri': redirectUri,
+      'state': 'login',
+    }).toString();
 
     try {
       print('🚀 [AuthService] 准备启动本地服务器...');
@@ -438,7 +468,10 @@ class AuthService extends ChangeNotifier {
         print('📩 [AuthService] 收到 HTTP 请求: $path, 参数: $params');
         DeveloperModeService().addLog('📩 [AuthService] 收到本地 HTTP 请求: $path, 参数: $params');
 
-        if (path == '/oauth/callback' || path == 'oauth/callback') {
+        final normalizedPath = path.endsWith('/') && path.length > 1
+            ? path.substring(0, path.length - 1)
+            : path;
+        if (normalizedPath == '/oauth/callback' || normalizedPath == 'oauth/callback') {
           final code = params['code'];
           print('✅ [AuthService] 识别到授权码: ${code?.substring(0, 5)}...');
           DeveloperModeService().addLog('✅ [AuthService] 识别到回调! code: ${code?.substring(0, 5)}...');
@@ -605,12 +638,20 @@ class AuthService extends ChangeNotifier {
       print('🔑 [AuthService] 获得授权码，开始请求后端登录...');
       final response = await http.post(
         Uri.parse('${UrlService().baseUrl}/auth/linuxdo/login'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: jsonEncode({'code': code}),
       );
 
       print('📥 [AuthService] 后端响应状态: ${response.statusCode}');
-      final data = jsonDecode(response.body);
+      final data = _tryDecodeJson(response.body);
+      if (data == null) {
+        final message = _buildNonJsonErrorMessage(response, fallback: 'Linux Do 登录失败');
+        DeveloperModeService().addLog('❌ [AuthService] $message');
+        return {'success': false, 'message': message};
+      }
       print('🔍 [AuthService] 后端返回数据: ${jsonEncode(data['data'])}');
       print('🖼️ [AuthService] 头像URL: ${data['data']?['avatarUrl']}');
       DeveloperModeService().addLog('🖼️ [Auth] Linux Do 头像 URL: ${data['data']?['avatarUrl']}');
@@ -654,12 +695,20 @@ class AuthService extends ChangeNotifier {
 
       final response = await http.post(
         Uri.parse('${UrlService().baseUrl}/auth/linuxdo/login'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: jsonEncode({'code': code}),
       );
 
       print('📥 [AuthService] 后端响应状态: ${response.statusCode}');
-      final data = jsonDecode(response.body);
+      final data = _tryDecodeJson(response.body);
+      if (data == null) {
+        final message = _buildNonJsonErrorMessage(response, fallback: 'Linux Do 登录失败');
+        DeveloperModeService().addLog('❌ [AuthService] $message');
+        return {'success': false, 'message': message};
+      }
       print('🔍 [AuthService] 后端返回数据: ${jsonEncode(data['data'])}');
       print('🖼️ [AuthService] 头像URL: ${data['data']?['avatarUrl']}');
       DeveloperModeService().addLog('🖼️ [Auth] Linux Do 头像 URL: ${data['data']?['avatarUrl']}');

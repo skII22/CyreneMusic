@@ -809,8 +809,8 @@ class _MobileSetupPageState extends State<MobileSetupPage> {
     // 标记协议为已确认
     final storage = PersistentStorageService();
     await storage.setBool('terms_accepted', true);
-    // 退出本地模式
-    await storage.setEnableLocalMode(false);
+    // 跳过配置时进入本地模式，避免再次回到登录引导
+    await storage.setEnableLocalMode(true);
     
     // 通知跳过 - 触发 main.dart 中的状态更新来进入主应用
     AudioSourceService().notifyListeners();
