@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart' show ImageProvider; // for cover provider
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../utils/image_utils.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -1322,7 +1323,7 @@ class PlayerService extends ChangeNotifier {
       ImageProvider provider;
       if (isNetwork) {
         // 网络图片：使用 CachedNetworkImageProvider
-        provider = CachedNetworkImageProvider(imageUrl);
+        provider = CachedNetworkImageProvider(imageUrl, headers: getImageHeaders(imageUrl));
       } else {
         // 本地文件：使用 FileImage
         final file = File(imageUrl);
@@ -1358,7 +1359,7 @@ class PlayerService extends ChangeNotifier {
       
       if (isNetwork) {
         print('🖼️ [PlayerService] 预缓存下一首封面: ${nextTrack.name} -> $imageUrl');
-        final provider = CachedNetworkImageProvider(imageUrl);
+        final provider = CachedNetworkImageProvider(imageUrl, headers: getImageHeaders(imageUrl));
         
         // 检查是否需要预加载主题色
         final backgroundService = PlayerBackgroundService();
@@ -1502,7 +1503,7 @@ class PlayerService extends ChangeNotifier {
       final ImageProvider imageProvider;
       
       if (isNetwork) {
-        imageProvider = CachedNetworkImageProvider(imageUrl);
+        imageProvider = CachedNetworkImageProvider(imageUrl, headers: getImageHeaders(imageUrl));
       } else {
         final file = File(imageUrl);
         if (!await file.exists()) {
@@ -1563,7 +1564,7 @@ class PlayerService extends ChangeNotifier {
       // 💡 更好方案：使用我们刚才新建好的 extractColorsFromRegion。
       // 我们在内部先快速 Resolve 图片获取尺寸（这在主线程完成，但通常很快）
       final ImageProvider imageProvider = imageUrl.startsWith('http') 
-          ? CachedNetworkImageProvider(imageUrl) 
+          ? CachedNetworkImageProvider(imageUrl, headers: getImageHeaders(imageUrl)) 
           : FileImage(File(imageUrl));
       
       final async_lib.Completer<ui.Image> completer = async_lib.Completer();

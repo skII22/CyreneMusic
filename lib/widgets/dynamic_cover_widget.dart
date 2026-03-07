@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../services/player_service.dart';
+import '../../utils/image_utils.dart';
 import 'video_background_player.dart';
 
 /// 动态封面组件
@@ -56,7 +57,7 @@ class _DynamicCoverWidgetState extends State<DynamicCoverWidget> {
         ? RepaintBoundary(
             child: Image(
               key: ValueKey('static_cover_${widget.imageUrl}'),
-              image: coverProvider ?? CachedNetworkImageProvider(widget.imageUrl),
+              image: coverProvider ?? CachedNetworkImageProvider(widget.imageUrl, headers: getImageHeaders(widget.imageUrl)),
               fit: widget.fit,
               width: widget.width,
               height: widget.height,
